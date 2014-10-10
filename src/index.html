@@ -1,0 +1,234 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <title>XSockets.NET 4.0 WebRTC Example</title>
+
+    <link href="//maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap.min.css" rel="stylesheet" />
+
+
+    <script src="//ajax.googleapis.com/ajax/libs/jquery/2.1.1/jquery.min.js"></script>
+    <script src="//maxcdn.bootstrapcdn.com/bootstrap/3.2.0/js/bootstrap.min.js"></script>
+
+    <script src="Scripts/XSockets.latest.js"></script>
+    <script src="Scripts/XSockets.WebRTC.latest.js"></script>
+
+    <style>
+        #local {
+            max-height: 120px;
+            width: 120px;
+            position: absolute;
+            right: 10px;
+            top: 0;
+            z-index: 10;
+        }
+            #local video {
+                margin: 10px auto;
+                max-width: 120px;
+            }
+
+            #local span {
+                position: absolute;
+                top: 10px;
+                z-index: 20;
+                text-align: center;
+                top: 20px;
+                width: 40px;
+                color: #fff;
+                background: #000;
+                padding: 5px;
+                text-transform: uppercase;
+                font-size: 50%;
+            }
+
+
+        #chatMesssages {
+            height: 250px;
+            overflow: hidden;
+        }
+    </style>
+
+    <script>
+
+        var logToScreen = true;
+
+        var changeHash = function (hash) {
+            window.location.hash = hash;
+            return hash;
+        }
+
+        var log = function (subject, message) {
+            if (logToScreen) {
+                $("<pre>").text(subject + ":" + JSON.stringify(message)).prependTo("#log");
+            }
+        }
+
+
+        var conn, peer, dc, broker;
+        $(function () {
+
+
+            var defaultContext = window.location.hash === "" ? XSockets.Utils.guid() : window.location.hash.substr(1);
+
+            conn = new XSockets.WebSocket("ws://127.0.0.1:4502", ["connectionbroker"], {
+                ctx: defaultContext
+            });
+            broker = conn.controller("connectionbroker");
+
+            broker.onconnected = function (connection) {
+                log("onconnected", connection);
+            };
+
+            broker.onopen = function () {
+
+            };
+
+            peer = new XSockets.WebRTC(broker);
+
+            // create a dataChannel
+            dc = new XSockets.WebRTC.DataChannel("chat");
+
+            // Subscribe to the chatMessage topic
+            dc.subscribe("chatMessage", function (chatMessage) {
+                log("chatMessage", chatMessage);
+                $("<p>").text(chatMessage.message).prependTo("#chatMesssages");
+            });
+
+            // When the dataChannel is open, show the chat.
+            dc.onopen = function () {
+                $("#chat").show();
+            };
+
+            // add the dataChannel
+            peer.addDataChannel(dc);
+
+            // RTCPeerConnection Events
+            //peer.bind("signalingstatechange", function (evt) {
+            //    log(evt.type);
+            //});
+
+            //peer.bind("iceconnectionstatechange", function (evt) {
+            //    log(evt.type);
+            //});
+
+            //peer.bind("negotiationneeded", function (evt) {
+            //    log(evt.type);
+            //});
+
+
+            peer.onerror = function (err) {
+                log("onerror", err);
+            };
+            peer.oncontextcreated = function (ctx) {
+                log("oncontextcreated", ctx);
+                changeHash(ctx.Context);
+                peer.getUserMedia(peer.userMediaConstraints.qvga(false), function (s) {
+                    peer.connectToContext();
+                });
+            };
+            peer.onremotestream = function (re) {
+                log("onremotestream", re);
+
+                var remoteVideo = $("<video>").attr({
+                    autoplay: "autoplay",
+                    id: re.PeerId
+                }).addClass("img-responsive");
+                var v = $("<div>").addClass("col-xs-4 col-sm-3");
+                $(v).append(remoteVideo);
+                $("#remoteVideos").append(v);
+                attachMediaStream($(remoteVideo).get(0), re.stream);
+            };
+            peer.onconnectionstart = function (evt) {
+                log("onconnectionstart", evt);
+            };
+            peer.onconnectioncreated = function (evt) {
+                log("onconnectioncreated", evt);
+            };
+            peer.onconnectionlost = function (rs) {
+                $("video#" + rs.PeerId).remove();
+                log("onconnectionlost", rs);
+            };
+            peer.oncontextchanged = function (evt) {
+                log("oncontextchanged", evt);
+            };
+            peer.onlocalstream = function (stream) {
+                log("onlocalstream", stream);
+                attachMediaStream(document.querySelector("#localVideo"), stream);
+            };
+            peer.onlocalstreamcreated = function (evt) {
+                log("onlocalstreamcreated", evt);
+            };
+
+
+            // UI related (chat )
+
+            $("input#message").on("keydown", function (evt) {
+                if (evt.keyCode === 13) {
+                    evt.preventDefault();
+                    dc.publish("chatMessage", { message: this.value });
+                    $("<p>").text(this.value).prependTo("#chatMesssages");
+                    this.value = "";
+                };
+            });
+
+        });
+
+
+    </script>
+
+
+
+
+</head>
+<body>
+    <!-- local video stream (you)-->
+    <div id="local">
+        <span>local</span>
+        <video id="localVideo" autoplay class="img-rounded"></video>
+    </div>
+    <div class="container-fluid">
+        <h1 class="page-header">
+            XSockets.NET WebRTC Example
+
+        </h1>
+        <div class="row">
+            <div class="col-xs-12 col-sm-6">
+                <div class="panel panel-default">
+                    <div class="panel-heading">Remote videos ( participants )</div>
+                    <div class="panel-body">
+                        <div class="row" id="remoteVideos">
+
+                        </div>
+                    </div>
+
+
+                </div>
+            </div>
+            <div class="col-xs-12 col-sm-6">
+                <div class="panel panel-default" id="chat">
+                    <div class="panel-heading">Simple chat</div>
+                    <div class="panel-body">
+                        <div id="chatMesssages">
+                            <div id="remoteVideos"></div>
+                        </div>
+                    </div>
+                    <div id="panel-footer clearfix">
+                        <form role="form" style="padding:10px">
+                            <div class="form-group">
+                                <label for="message">Chat message:</label>
+                                <input name="message" type="text" id="message" placeholder="Write a message" class="form-control" />
+                            </div>
+                        </form>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-xs-12">
+                <div id="log"></div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
