@@ -2,16 +2,11 @@
 <html>
 <head>
     <title>XSockets.NET 4.0 WebRTC Example</title>
-
     <link href="//maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap.min.css" rel="stylesheet" />
-
-
     <script src="//ajax.googleapis.com/ajax/libs/jquery/2.1.1/jquery.min.js"></script>
     <script src="//maxcdn.bootstrapcdn.com/bootstrap/3.2.0/js/bootstrap.min.js"></script>
-
     <script src="js/XSockets.latest.js"></script>
     <script src="js/XSockets.WebRTC.latest.js"></script>
-
     <style>
         #local {
             max-height: 120px;
@@ -21,6 +16,7 @@
             top: 0;
             z-index: 10;
         }
+
             #local video {
                 margin: 10px auto;
                 max-width: 120px;
@@ -40,14 +36,26 @@
                 font-size: 50%;
             }
 
-
         #chatMesssages {
             height: 250px;
             overflow: hidden;
         }
     </style>
-
     <script>
+        var ReadFile = (function () {
+            var file = function () {
+                this.read = function (f, fn) {
+                    var reader = new FileReader();
+                    reader.onload = (function (tf) {
+                        return function (e) {
+                            fn(tf, e.target.result);
+                        };
+                    })(f);
+                    reader.readAsArrayBuffer(f);
+                }
+            }
+            return file;
+        }());
 
         var logToScreen = true;
 
@@ -87,6 +95,23 @@
             // create a dataChannel
             dc = new XSockets.WebRTC.DataChannel("chat");
 
+
+            // Subscribe to the fileShare topic
+            dc.subscribe("fileShare", function (file) {
+                // create a blob based in the arrayBuffer passed
+                var blob = new Blob([file.binary], {
+                    type: file.data.type
+                });
+                var download = $("<a>").text(file.data.name).attr({
+                    download: file.data.filename,
+                    href: URL.createObjectURL(blob),
+                    target: "_blank"
+                });
+
+                $("#chatMesssages").prepend(download);
+
+            });
+
             // Subscribe to the chatMessage topic
             dc.subscribe("chatMessage", function (chatMessage) {
                 log("chatMessage", chatMessage);
@@ -100,21 +125,6 @@
 
             // add the dataChannel
             peer.addDataChannel(dc);
-
-            // RTCPeerConnection Events
-            //peer.bind("signalingstatechange", function (evt) {
-            //    log(evt.type);
-            //});
-
-            //peer.bind("iceconnectionstatechange", function (evt) {
-            //    log(evt.type);
-            //});
-
-            //peer.bind("negotiationneeded", function (evt) {
-            //    log(evt.type);
-            //});
-
-
             peer.onerror = function (err) {
                 log("onerror", err);
             };
@@ -144,7 +154,7 @@
                 log("onconnectioncreated", evt);
             };
             peer.onconnectionlost = function (rs) {
-                $("video#" + rs.PeerId).remove();
+                $("video#" + rs.PeerId).parent().remove();
                 log("onconnectionlost", rs);
             };
             peer.oncontextchanged = function (evt) {
@@ -170,14 +180,24 @@
                 };
             });
 
+            // Grab the selected file, add some meta data and pass a BinaryMessage (arrayBuffer)
+            document.querySelector('#files').addEventListener('change', function (evt) {
+                var files = evt.target.files;
+                var r = new ReadFile();
+                r.read(files[0], function (file, bytes) {
+                    dc.publishBinary("fileshare", bytes, {
+                        name: file.name,
+                        type: file.type,
+                        size: file.size
+                    });
+
+                });
+            }, false);
+
         });
 
 
     </script>
-
-
-
-
 </head>
 <body>
     <!-- local video stream (you)-->
@@ -188,7 +208,6 @@
     <div class="container-fluid">
         <h1 class="page-header">
             XSockets.NET WebRTC Example
-
         </h1>
         <div class="row">
             <div class="col-xs-12 col-sm-6">
@@ -196,34 +215,33 @@
                     <div class="panel-heading">Remote videos ( participants )</div>
                     <div class="panel-body">
                         <div class="row" id="remoteVideos">
-
                         </div>
                     </div>
-
-
                 </div>
             </div>
             <div class="col-xs-12 col-sm-6">
                 <div class="panel panel-default" id="chat">
                     <div class="panel-heading">Simple chat</div>
                     <div class="panel-body">
-                        <div id="chatMesssages">
-                            <div id="remoteVideos"></div>
+                        <div id="chatMesssages" class="well well-sm">
                         </div>
                     </div>
                     <div id="panel-footer clearfix">
                         <form role="form" style="padding:10px">
                             <div class="form-group">
-                                <label for="message">Chat message:</label>
-                                <input name="message" type="text" id="message" placeholder="Write a message" class="form-control" />
+                                <label for="message">Message:</label>
+                                <input name="message" type="text" id="message"
+                                       placeholder="Write a message and hit enter.." class="form-control" />
+                            </div>
+                            <div class="form-group">
+                                <label>Share a file:</label>
+                                <input type="file" class="form-control" id="files" />
                             </div>
                         </form>
                     </div>
-
                 </div>
             </div>
         </div>
-
         <div class="row">
             <div class="col-xs-12">
                 <div id="log"></div>
