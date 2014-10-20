@@ -63,13 +63,8 @@ if (navigator.mozGetUserMedia) {
         to.mozSrcObject = from.mozSrcObject;
         to.play();
     };
-    // Fake get{Video,Audio}Tracks
-    MediaStream.prototype.getVideoTracks = function () {
-        return [];
-    };
-    MediaStream.prototype.getAudioTracks = function () {
-        return [];
-    };
+
+   
 }
 else if (navigator.webkitGetUserMedia) {
     webrtcDetectedBrowser = "chrome";
@@ -240,6 +235,8 @@ XSockets.WebRTC = (function () {
         var isAudioMuted = false;
         var self = this;
         var localStreams = [];
+        var remoteStreams = [];
+
         var subscriptions = new XSockets.Subscriptions();
         this.PeerConnections = {};
         this.DataChannels = undefined;
@@ -261,6 +258,9 @@ XSockets.WebRTC = (function () {
             sdpExpressions: []
         };
         var options = XSockets.Utils.extend(defaults, settings);;
+
+        this.userMediaConstraints = new XSockets.UserMediaConstraints();
+
         this.bind = function (event, fn) {
             subscriptions.add(new XSockets.Subscription(event, fn));
             return this;
@@ -289,6 +289,12 @@ XSockets.WebRTC = (function () {
                 if (self.hasOwnProperty(key)) self[key](data);
             });
         };
+
+        this.supportsMediaSources = function () {
+            /// <summary>Determin if the clients can enumerate and/or supports MediaSources</summary>
+            return typeof MediaStreamTrack === 'undefined';
+        };
+
         this.muteAudio = function (cb) {
             /// <summary>Toggle mute on all local streams</summary>
             /// <param name="cb" type="Object">function to be invoked when toggled</param>
@@ -370,6 +376,18 @@ XSockets.WebRTC = (function () {
                 }
             });
         };
+
+        this.getRemoteStreams = function() {
+            return remoteStreams;
+        };
+
+        this.removeAllStreams = function() {
+            remoteStreams.forEach(function(stream) {
+                self.dispatch(XSockets.WebRTC.Events.remoteStreams, stream);
+            });
+        };
+      
+
         this.getRemotePeers = function () {
             /// <summary>Returns a list of remotePeers (list of id's)</summary>
             var ids = [];
@@ -425,6 +443,11 @@ XSockets.WebRTC = (function () {
             /// <param name="userMediaSettings" type="Object">connstraints. i.e .usersdpConstraints.hd()</param>
             /// <param name="success" type="Object">callback function invoked when media stream captured</param>
             /// <param name="error" type="Object">callback function invoked on faild to get the media stream </param>
+
+           if (constraints instanceof XSockets.UserMediaConstraint) {
+               delete constraints.applySources;
+           }
+
             window.getUserMedia(constraints, function (stream) {
                 localStreams.push(stream);
                 broker.invoke("addStream", {
@@ -433,8 +456,9 @@ XSockets.WebRTC = (function () {
                 });
                 self.dispatch(XSockets.WebRTC.Events.onlocalstream, stream);
                 if (success && typeof (success) === "function") success(self.CurrentContext);
-            }, function (err) {
-                if (error && typeof (error) === "function") error(err);
+            }, function (ex) {
+                if (ex && typeof (ex) === "function") error(ex);
+                self.onerror(ex);
             });
             return this;
         };
@@ -466,6 +490,10 @@ XSockets.WebRTC = (function () {
                 throw "A RTCDataChannel named '" + name + "' does not exists.";
             }
         };
+
+
+        this.onerror = function(ex) {console.log(ex)};
+
         this.Connections = [];
         this.rtcPeerConnection = function (configuration, peerId, cb) {
             var that = this;
@@ -484,6 +512,13 @@ XSockets.WebRTC = (function () {
                 iceServers: configuration.iceServers || {}
             }, null);
             this.Connection.oniceconnectionstatechange = function (event) {
+
+                if (that.Connection.iceConnectionState == 'disconnected') {
+                    self.dispatch(XSockets.WebRTC.Events.onconnectionlost, {
+                        PeerId: that.PeerId
+                    });
+                }
+              
                 self.dispatch(event.type, event);
             };
             this.Connection.onnegotiationneeded = function (event) {
@@ -545,22 +580,30 @@ XSockets.WebRTC = (function () {
                         });
                     }
                 }
-            };
-            dataChannel.onpublish = function (topic, data) {
-                var message = new XSockets.Message(topic, data);
-                for (var p in self.PeerConnections) {
-                    if (self.PeerConnections[p].RTCDataChannels[dataChannel.name].readyState === "open") self.PeerConnections[p].RTCDataChannels[dataChannel.name].send(JSON.stringify(message));
-                }
-            };
-            dataChannel.onpublishTo = function (id, topic, data) {
-                var message = new XSockets.Message(topic, data);
-                if (self.PeerConnections[id]) self.PeerConnections[id].RTCDataChannels[dataChannel.name].send(JSON.stringify(message));
-            };
+                dataChannel.onpublish = function (topic, data) {
+                    var message = new XSockets.Message(topic, data);
+                    for (var p in self.PeerConnections) {
+                        if (self.PeerConnections[p].RTCDataChannels[dataChannel.name].readyState === "open") self.PeerConnections[p].RTCDataChannels[dataChannel.name].send(JSON.stringify(message));
+                    }
+                };
+                dataChannel.onpublishTo = function (id, topic, data) {
+                    var message = new XSockets.Message(topic, data);
+                    if (self.PeerConnections[id]) self.PeerConnections[id].RTCDataChannels[dataChannel.name].send(JSON.stringify(message));
+                };
+            };        
+
             this.Connection.onaddstream = function (event) {
+                remoteStreams.push({ id: event.stream.id, peerId: that.PeerId });
+                event.stream.onended = function () {
+                    self.dispatch(XSockets.WebRTC.Events.onremotestreamlost, {
+                        PeerId: that.PeerId
+                    });
+                };
                 self.dispatch(XSockets.WebRTC.Events.onremotestream, {
                     PeerId: that.PeerId,
                     stream: event.stream
                 });
+                
             };
             this.Connection.onicecandidate = function (event) {
                 if (event.candidate) {
@@ -587,11 +630,13 @@ XSockets.WebRTC = (function () {
             localStreams.forEach(function (a, b) {
                 self.PeerConnections[peer.PeerId].Connection.addStream(a, options.streamConstraints);
             });
+
+         
             self.PeerConnections[peer.PeerId].Connection.createOffer(function (localDescription) {
                 options.sdpExpressions.forEach(function (expr, b) {
                     localDescription.sdp = expr(localDescription.sdp);
-                }, function (failue) {
-                    console.log(failue);
+                }, function (ex) {
+                    self.onerror(ex);
                 });
                 self.PeerConnections[peer.PeerId].Connection.setLocalDescription(localDescription);
                 broker.invoke("contextsignal", {
@@ -599,8 +644,8 @@ XSockets.WebRTC = (function () {
                     Recipient: peer.PeerId,
                     Message: JSON.stringify(localDescription)
                 });
-            }, function () { }, options.sdpConstraints);
-            // fix onError
+            }, function (ex) { self.onerror(ex); }, options.sdpConstraints);
+          
         };
         self.bind("connect", function (peer) {
             self.createOffer(peer);
@@ -620,26 +665,29 @@ XSockets.WebRTC = (function () {
             self.PeerConnections[event.Sender].Connection.setRemoteDescription(new RTCSessionDescription(JSON.parse(event.Message)));
         });
         self.bind("offer", function (event) {
+
             self.dispatch(XSockets.WebRTC.Events.onoffer, {
                 PeerId: event.Sender
             });
             self.PeerConnections[event.Sender] = new self.rtcPeerConnection(options, event.Sender);
             self.PeerConnections[event.Sender].Connection.setRemoteDescription(new RTCSessionDescription(JSON.parse(event.Message)));
+
             localStreams.forEach(function (a, b) {
                 self.PeerConnections[event.Sender].Connection.addStream(a, options.streamConstraints);
             });
+
             self.PeerConnections[event.Sender].Connection.createAnswer(function (description) {
                 self.PeerConnections[event.Sender].Connection.setLocalDescription(description);
                 options.sdpExpressions.forEach(function (expr, b) {
                     description.sdp = expr(description.sdp);
-                }, function (failure) { });
+                }, function (ex) { self.onerror(ex); });
                 var answer = {
                     Sender: self.CurrentContext.PeerId,
                     Recipient: event.Sender,
                     Message: JSON.stringify(description)
                 };
                 broker.invoke("contextsignal", answer);
-            }, function () { }, options.sdpConstraints);
+            }, function (ex) { self.onerror(ex); }, options.sdpConstraints);
         });
         broker.contextcreated = function (context) {
             self.CurrentContext = new XSockets.PeerContext(context.PeerId, context.Context);
@@ -688,61 +736,141 @@ XSockets.WebRTC = (function () {
     }
     return instance;
 })();
-XSockets.WebRTC.prototype.userMediaConstraints = {
-    qvga: function (audio) {
-        return {
-            video: {
-                mandatory: {
-                    maxWidth: 320,
-                    maxHeight: 180
-                }
-            },
-            audio: typeof (audio) !== "boolean" ? false : audio
-        };
-    },
-    vga: function (audio) {
-        return {
-            video: {
-                mandatory: {
-                    maxWidth: 640,
-                    maxHeight: 360
-                }
-            },
-            audio: typeof (audio) !== "boolean" ? false : audio
-        };
-    },
-    hd: function (audio) {
-        return {
-            video: {
-                mandatory: {
-                    minWidth: 1280,
-                    minHeight: 720
-                }
-            },
-            audio: typeof (audio) !== "boolean" ? false : audio
-        };
-    },
-    create: function (w, h, audio) {
-        return {
-            video: {
-                mandatory: {
-                    minWidth: w,
-                    minHeight: h
-                }
-            },
-            audio: typeof (audio) !== "boolean" ? false : audio
-        };
-    },
-    screenSharing: function () {
-        return {
-            video: {
-                mandatory: {
-                    chromeMediaSource: 'screen'
-                }
+
+
+XSockets.WebRTC.MediaSource = (function () {
+    var mediaSources = function() {
+        this.getSources = function(cb) {
+            if (typeof MediaStreamTrack === 'undefined') {
+                console.log('This browser does not support MediaStreamTrack');
+                return null;
+            } else {
+                MediaStreamTrack.getSources(function(results) {
+                    var sources = results.map(function(sourceInfo,i) {
+                        return { id: sourceInfo.id, kind: sourceInfo.kind, label: sourceInfo.label || sourceInfo.kind + " - " + i };
+                    });
+                    cb(sources);
+                });
             }
+            return this;
         };
+
+      
+    };
+
+    return mediaSources;
+})();
+
+XSockets.UserMediaConstraints = (function () {
+    var constraints = function () {
+        this.options = ["qvga","vga","hd"];
+        this.qvga = function(audio) {
+            return new XSockets.UserMediaConstraint({
+                video: {
+                    mandatory: {
+                        maxWidth: 320,
+                        maxHeight: 180
+                    }
+                },
+                audio: typeof (audio) !== "boolean" ? false : audio,
+            });
+        };
+        this.svga = function (audio) {
+            return new XSockets.UserMediaConstraint({
+                video: {
+                    mandatory: {
+                        maxWidth: 800,
+                        maxHeight: 600
+                    },
+                    optional: []
+                },
+                audio: typeof (audio) !== "boolean" ? false : audio
+            });
+        };
+        this.xga = function (audio) {
+            return new XSockets.UserMediaConstraint({
+                video: {
+                    mandatory: {
+                        maxWidth: 1024,
+                        maxHeight: 768
+                    },
+                    optional: []
+                },
+                audio: typeof (audio) !== "boolean" ? false : audio
+            });
+        };
+        this.vga = function (audio) {
+            return new XSockets.UserMediaConstraint( {
+                video: {
+                    mandatory: {
+                        maxWidth: 640,
+                        maxHeight: 360
+                    },
+                    optional: []
+                },
+                audio: typeof (audio) !== "boolean" ? false : audio
+            });
+        };
+        this.hd = function (audio) {
+            return new XSockets.UserMediaConstraint( {
+                video: {
+                    mandatory: {
+                        minWidth: 1280,
+                        minHeight: 720
+                    }, optional: []
+                },
+                audio: typeof (audio) !== "boolean" ? false : audio
+            });
+        };
+        this.create = function (w, h, audio) {
+            return new XSockets.UserMediaConstraint( {
+                video: {
+                    mandatory: {
+                        minWidth: w,
+                        minHeight: h
+                    }
+                },
+                optional: [],
+                audio: typeof (audio) !== "boolean" ? false : audio
+            });
+        };
+    };
+    return constraints;
+})();
+
+XSockets.UserMediaConstraint = (function() {
+    var constraint = function (c) {
+        var self = this;
+        this.applySources = function() {
+        };
+        if (arguments.length > 2) {
+                for (var a = 1; a < arguments.length; a++) {
+                    this.extend(self, arguments[a]);
+                }
+            } else {
+                for (var i in c) {
+                    self[i] = c[i];
+                }
+        }
+        this.applySources = function (videoSourceId, audioSourceId) {
+
+            if (videoSourceId != "") {
+                if (self.video) (self["video"].optional = []).push({ sourceid: videoSourceId });
+            } else self.video = false;
+
+            if (audioSourceId != "") {
+                if (self.audio) (self["audio"].optional = []).push({ sourceid: audioSourceId });
+            } else self.audio = false;
+                
+           
+            return this;
+        }
+        return this;
     }
-};
+    return constraint;
+})();
+
+
 XSockets.WebRTC.DataChannel = (function () {
     function channel(name) {
         var self = this;
@@ -755,6 +883,12 @@ XSockets.WebRTC.DataChannel = (function () {
         this.publishBinary = function (topic, bytes, data) {
             if (!self.onpublishbinary) return this;
             self.onpublishbinary(topic, bytes, data);
+            return this;
+        }
+
+        this.publishBinaryTo = function (id,topic, bytes, data) {
+            if (!self.onpublishbinaryTo) return this;
+            self.onpublishbinaryTo(topic, bytes, data);
             return this;
         }
         this.publish = function (topic, data, cb) {

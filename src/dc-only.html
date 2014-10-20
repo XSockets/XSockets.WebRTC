@@ -1,0 +1,89 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <title></title>
+</head>
+<body>
+    <h1>XSockets.WebRTC DataChannels only example</h1>
+    <div>
+        <input type="text" />
+    </div>
+
+    <div id="messages">
+
+    </div>
+    <script src="//ajax.googleapis.com/ajax/libs/jquery/2.1.1/jquery.min.js"></script>
+    <script src="js/XSockets.latest.js"></script>
+    <script src="js/XSockets.WebRTC.latest.js"></script>
+    <script>
+
+        var broker, dc, peer;
+        $(function () {
+
+            // Create a new connection to the broker
+            broker = new XSockets.WebSocket("ws://127.0.0.1:4502", ["connectionbroker"], {
+                ctx: 'ae460182-cfe7-4274-a172-5283d708dfed'
+            });
+
+            // Create a new dataChannel
+            dc = new XSockets.WebRTC.DataChannel("myDataChannel");
+
+            // Just display open in the console when the channel is open, will fire for each remote Peer connected
+            dc.onopen = function () {
+                console.log("open");
+            };
+
+            // Just display close in the console when the channel is closed, will fire for each remote Peer connected
+            dc.onclose = function (r) {
+                console.log("close", r);
+            };
+
+            // Subscribe to messages with the topic of "foo", when a messaes arrives, create a new DOM node or update?
+            dc.subscribe("foo", function (msg) {
+                addOrUpdateNode(msg);
+            });
+
+            // Create a new PeerConnection
+            peer = new XSockets.WebRTC(broker.controller("connectionbroker"));
+
+            // add the dataChannel
+            peer.addDataChannel(dc);
+
+            // When we got a new context,  connect to it, in this case we are using the predefined
+            // context that we pass as a parameter to the broker ( se above )
+            peer.oncontextcreated = function (ctx) {
+                peer.connectToContext();
+            };
+
+            // When the user interacts with the UI, input box send a messages, if
+            // a new line , create a new node... etc
+            var node = XSockets.Utils.guid();
+            $("input").on("keyup", function (evt) {
+                if (evt.keyCode === 13) {
+                    evt.preventDefault();
+                    this.value = "";
+                    node = XSockets.Utils.guid();
+                }
+                var msg = {
+                    id: node,
+                    text: this.value
+                };
+                dc.publish("foo",
+                   msg
+                );
+                addOrUpdateNode(msg); // as we dont send to ourself, add the this node also...
+            });
+        });
+        var addOrUpdateNode = function (msg) {
+            var node = $("p#node_" + msg.id);
+            if (node.length === 0) {
+                $("<p>").attr("id", "node_" + msg.id).text(msg.text).prependTo("#messages");
+            } else {
+                $(node).text(msg.text);
+            }
+        }
+
+
+    </script>
+</body>
+</html>

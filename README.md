@@ -10,6 +10,9 @@ We have created a simple demo package available on Nuget. This package gives you
     PM> Install Package XSockets.Sample.WebRTC
 
 
+You can alsoo find a blog post on the following link:
+http://xsockets.net/blog/tutorial-building-a-multivideo-chat-with-webrtc
+
 ##Pre-Req
 
 In order to be able to use the XSockets.NET PeerBroker and the WebRTC JavaScript API's of ours you need to install XSockets.NET into your application. Since you are going to have a web-application we recomend you to use MVC, but it is up to you.
@@ -283,8 +286,15 @@ To get a list of the peerconnection (clients ) media-streams call the `.getLocal
 
     var myLocalStreams = rtc.getLocalStreams();
 
+
+####getRemoteStreams()
+To get a list of  mediaStreams attach to remote peers call the `getRemoteStreams()` method.
+
+    var myRemoteStreams = rtc.getRemoteStreams();
+
+
 ###MediaStream Events
-#### onLocalStream(event)
+#### onlocalstream(event)
 
 When a media stream is attached to the PeerConnection using `getUserMedia` och `addMediaStream` the API fires the `onlocalstream(stream)` event.
 
@@ -295,7 +305,7 @@ When a media stream is attached to the PeerConnection using `getUserMedia` och `
     
     
 
-#### onRemoteStream(event)
+#### onremotestream(event)
 
 When a remote PeerConnection is connected the API fires the `onremotestream(event)` .
 
@@ -311,6 +321,50 @@ When a remote peer removes a stream (`.removeStream(mediaStreamId)`) the JavaScr
      rtc.onremotestreamlost =  function(function) {
         // do op
      });
+###MediaSources
+
+To get a list of media sources ( cameras, microphones ) attached to the users device you the API provides you with a few small helper functions located in the  `XSockets.WebRTC.MediaSource()`
+
+####getSources(fn)
+
+`getSources(fn)` gives you an array of devices (label, kind and id) for each deviced attached.  Note that under a non secure (HTTPS) context you will get a list of anonymous names .
+
+    mediaSources = new XSockets.WebRTC.MediaSource();
+    
+    mediaSources.getSources(function (sources) {
+    
+    // Filter video devices
+    sources.filter(function (vs) {
+        return vs.kind === "video";
+    }).forEach(function (source, index) {
+        // do op
+    });
+    // filter audio devices
+    sources.filter(function (vs) {
+        return vs.kind === "audio";
+    }).forEach(function (source, index) {
+        // do op
+    });
+    });
+
+####applySources(videoSourceId, audioSourceId)
+
+To apply preferred media sources ( video, audio device) you need to call the applySources method on the userMediaConstrains of yours .
+
+    
+    // apply the selected sources to the getUserMedia constraints
+    // get some QVGA constraints.
+  
+    var gumConstraints = peer.userMediaConstraints.vga(true);
+    // Apply the selected / prefered sources
+    
+    gumConstraints.applySources(videoSourceId, audioSourceId);
+    
+    rtc.getUserMedia(gumConstraints, function (s) {
+     // do op
+    }, function () {});
+    
+
 
 
 ##DataChannels
