@@ -39,7 +39,7 @@ To build your own conference solution is really easy. Consult the [XSockets.NET 
 ----------
 
 
-  [1]: https://groups.google.com/forum/?hl=en#!forum/xsocketsgroup
+  [1]: http://xsockets.net
 
 ##Supported platforms
 
