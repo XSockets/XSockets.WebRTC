@@ -64,7 +64,7 @@ if (navigator.mozGetUserMedia) {
         to.play();
     };
 
-   
+
 }
 else if (navigator.webkitGetUserMedia) {
     webrtcDetectedBrowser = "chrome";
@@ -230,14 +230,19 @@ XSockets.AudioAnalyser = (function () {
     return AudioAnalyser;
 })();
 XSockets.WebRTC = (function () {
-    var instance = function (broker, settings) {
-        if (broker instanceof XSockets.Controller === false) throw "you most provide a broker controller";
+    var instance = function (controller, settings) {
+        if (controller instanceof XSockets.Controller === false) throw "you most provide a controller controller";
         var isAudioMuted = false;
         var self = this;
         var localStreams = [];
         var remoteStreams = [];
 
         var subscriptions = new XSockets.Subscriptions();
+
+
+        this.presense = new XSockets.WebRTC.PresenceManager(controller);
+
+
         this.PeerConnections = {};
         this.DataChannels = undefined;
         var defaults = {
@@ -323,13 +328,13 @@ XSockets.WebRTC = (function () {
         };
         this.leaveContext = function () {
             /// <summary>Leave the current context (hang up on all )</summary>
-            broker.invoke("leaveContext");
+            controller.invoke("leaveContext");
             return this;
         };
         this.changeContext = function (contextGuid) {
-            /// <summary>Change context on broker</summary>
+            /// <summary>Change context on controller</summary>
             /// <param name="contextGuid" type="Object">Unique identifer of the context to 'join'</param>
-            broker.invoke("changecontext", {
+            controller.invoke("changecontext", {
                 context: contextGuid
             });
             for (var peer in this.PeerConnections) {
@@ -347,7 +352,7 @@ XSockets.WebRTC = (function () {
                 this.PeerConnections[peer].Connection.close();
                 delete this.PeerConnections[peer];
             }
-            broker.invoke("connectToContext");
+            controller.invoke("connectToContext");
             return this;
         };
         this.getLocalStreams = function () {
@@ -367,7 +372,7 @@ XSockets.WebRTC = (function () {
                         //createOffer({
                         //    PeerId: peer
                         //});
-                        broker.invoke("removestream", {
+                        controller.invoke("removestream", {
                             recipient: peer,
                             streamId: id
                         });
@@ -377,16 +382,16 @@ XSockets.WebRTC = (function () {
             });
         };
 
-        this.getRemoteStreams = function() {
+        this.getRemoteStreams = function () {
             return remoteStreams;
         };
 
-        this.removeAllStreams = function() {
-            remoteStreams.forEach(function(stream) {
+        this.removeAllStreams = function () {
+            remoteStreams.forEach(function (stream) {
                 self.dispatch(XSockets.WebRTC.Events.remoteStreams, stream);
             });
         };
-      
+
 
         this.getRemotePeers = function () {
             /// <summary>Returns a list of remotePeers (list of id's)</summary>
@@ -410,7 +415,7 @@ XSockets.WebRTC = (function () {
         this.addLocalStream = function (stream, cb) {
             var index = localStreams.push(stream);
             // Check it there is PeerConnections 
-            broker.invoke("addStream", {
+            controller.invoke("addStream", {
                 streamId: stream.id,
                 description: ""
             });
@@ -422,7 +427,7 @@ XSockets.WebRTC = (function () {
             /// <summary>Remove the specified Peerconnection</summary>
             /// <param name="id" type="guid">Id of the PeerConnection. Id is the PeerId of the actual PeerConnection</param>
             /// <param name="fn" type="function">callback function invoked when the PeerConnection is removed</param>
-            //broker.publish("peerconnectiondisconnect", {
+            //controller.publish("peerconnectiondisconnect", {
             //    Recipient: id,
             //    Sender: self.CurrentContext.PeerId
             //});
@@ -444,13 +449,13 @@ XSockets.WebRTC = (function () {
             /// <param name="success" type="Object">callback function invoked when media stream captured</param>
             /// <param name="error" type="Object">callback function invoked on faild to get the media stream </param>
 
-           if (constraints instanceof XSockets.UserMediaConstraint) {
-               delete constraints.applySources;
-           }
+            if (constraints instanceof XSockets.UserMediaConstraint) {
+                delete constraints.applySources;
+            }
 
             window.getUserMedia(constraints, function (stream) {
                 localStreams.push(stream);
-                broker.invoke("addStream", {
+                controller.invoke("addStream", {
                     streamId: stream.id,
                     description: ""
                 });
@@ -492,7 +497,7 @@ XSockets.WebRTC = (function () {
         };
 
 
-        this.onerror = function(ex) {console.log(ex)};
+        this.onerror = function (ex) { console.log(ex) };
 
         this.Connections = [];
         this.rtcPeerConnection = function (configuration, peerId, cb) {
@@ -518,7 +523,7 @@ XSockets.WebRTC = (function () {
                         PeerId: that.PeerId
                     });
                 }
-              
+
                 self.dispatch(event.type, event);
             };
             this.Connection.onnegotiationneeded = function (event) {
@@ -590,7 +595,7 @@ XSockets.WebRTC = (function () {
                     var message = new XSockets.Message(topic, data);
                     if (self.PeerConnections[id]) self.PeerConnections[id].RTCDataChannels[dataChannel.name].send(JSON.stringify(message));
                 };
-            };        
+            };
 
             this.Connection.onaddstream = function (event) {
                 remoteStreams.push({ id: event.stream.id, peerId: that.PeerId });
@@ -603,7 +608,7 @@ XSockets.WebRTC = (function () {
                     PeerId: that.PeerId,
                     stream: event.stream
                 });
-                
+
             };
             this.Connection.onicecandidate = function (event) {
                 if (event.candidate) {
@@ -613,7 +618,7 @@ XSockets.WebRTC = (function () {
                         id: event.candidate.sdpMid,
                         candidate: event.candidate.candidate
                     };
-                    broker.invoke("contextsignal", {
+                    controller.invoke("contextsignal", {
                         sender: self.CurrentContext.PeerId,
                         recipient: that.PeerId,
                         message: JSON.stringify(candidate)
@@ -631,7 +636,7 @@ XSockets.WebRTC = (function () {
                 self.PeerConnections[peer.PeerId].Connection.addStream(a, options.streamConstraints);
             });
 
-         
+
             self.PeerConnections[peer.PeerId].Connection.createOffer(function (localDescription) {
                 options.sdpExpressions.forEach(function (expr, b) {
                     localDescription.sdp = expr(localDescription.sdp);
@@ -639,13 +644,13 @@ XSockets.WebRTC = (function () {
                     self.onerror(ex);
                 });
                 self.PeerConnections[peer.PeerId].Connection.setLocalDescription(localDescription);
-                broker.invoke("contextsignal", {
+                controller.invoke("contextsignal", {
                     Sender: self.CurrentContext.PeerId,
                     Recipient: peer.PeerId,
                     Message: JSON.stringify(localDescription)
                 });
             }, function (ex) { self.onerror(ex); }, options.sdpConstraints);
-          
+
         };
         self.bind("connect", function (peer) {
             self.createOffer(peer);
@@ -686,27 +691,27 @@ XSockets.WebRTC = (function () {
                     Recipient: event.Sender,
                     Message: JSON.stringify(description)
                 };
-                broker.invoke("contextsignal", answer);
+                controller.invoke("contextsignal", answer);
             }, function (ex) { self.onerror(ex); }, options.sdpConstraints);
         });
-        broker.contextcreated = function (context) {
+        controller.contextcreated = function (context) {
             self.CurrentContext = new XSockets.PeerContext(context.PeerId, context.Context);
             self.dispatch(XSockets.WebRTC.Events.oncontextcreated, context);
         };
-        broker.contextsignal = function (signal) {
+        controller.contextsignal = function (signal) {
             var msg = JSON.parse(signal.Message);
             self.dispatch(msg.type, signal);
         };
-        broker.contextchanged = function (change) {
+        controller.contextchanged = function (change) {
             self.dispatch(XSockets.WebRTC.Events.oncontextchange, change);
         };
-        broker.contextconnect = function (peers) {
+        controller.contextconnect = function (peers) {
             peers.forEach(function (peer) {
                 self.dispatch("connect", peer);
                 self.dispatch(XSockets.WebRTC.Events.onconnectionstart, peer);
             });
         };
-        broker.connectiondisconnect = function (peer) {
+        controller.connectiondisconnect = function (peer) {
             if (self.PeerConnections[peer.Sender] !== undefined) {
                 self.PeerConnections[peer.Sender].Connection.close();
                 self.dispatch(XSockets.WebRTC.Events.onconnectionlost, {
@@ -715,16 +720,16 @@ XSockets.WebRTC = (function () {
                 delete self.PeerConnections[peer.Sender];
             }
         };
-        broker.streamadded = function (event) {
+        controller.streamadded = function (event) {
             self.dispatch(XSockets.WebRTC.Events.onlocalstreamcreated, event);
         };
-        broker.streamremoved = function (event) {
+        controller.streamremoved = function (event) {
             self.dispatch(XSockets.WebRTC.Events.onremotestreamlost, {
                 PeerId: event.Sender,
                 StreamId: event.StreamId
             });
         };
-        broker.connectionlost = function (peer) {
+        controller.connectionlost = function (peer) {
             self.dispatch(XSockets.WebRTC.Events.onconnectionlost, {
                 PeerId: peer.PeerId
             });
@@ -738,15 +743,40 @@ XSockets.WebRTC = (function () {
 })();
 
 
+XSockets.WebRTC.PresenceManager = (function() {
+    var presenceManager = function (ctrl) {
+        this.Availability = {
+            Available: "Available",
+            Away: "Away",
+            DoNotDisturb: "DoNotDisturb"
+        }
+        this.instanceId = XSockets.Utils.guid();
+        this.setUsername = function(username,cb) {
+            ctrl.invoke("SetUsername", { username: username });
+            if (cb) cb(username);
+        };
+
+        this.setAvailability = function (availability, cb) {
+            ctrl.invoke("SetAvailability", { availability: Object.keys(this.Availability).indexOf(availability) });
+            if (cb) cb(availability);
+        }
+        this.parse = function (id) {
+            var keys = Object.keys(this.Availability);
+            return keys[id].toLowerCase();
+        };
+    };
+    return presenceManager;
+})();
+
 XSockets.WebRTC.MediaSource = (function () {
-    var mediaSources = function() {
-        this.getSources = function(cb) {
+    var mediaSources = function () {
+        this.getSources = function (cb) {
             if (typeof MediaStreamTrack === 'undefined') {
                 console.log('This browser does not support MediaStreamTrack');
                 return null;
             } else {
-                MediaStreamTrack.getSources(function(results) {
-                    var sources = results.map(function(sourceInfo,i) {
+                MediaStreamTrack.getSources(function (results) {
+                    var sources = results.map(function (sourceInfo, i) {
                         return { id: sourceInfo.id, kind: sourceInfo.kind, label: sourceInfo.label || sourceInfo.kind + " - " + i };
                     });
                     cb(sources);
@@ -755,7 +785,7 @@ XSockets.WebRTC.MediaSource = (function () {
             return this;
         };
 
-      
+
     };
 
     return mediaSources;
@@ -763,8 +793,16 @@ XSockets.WebRTC.MediaSource = (function () {
 
 XSockets.UserMediaConstraints = (function () {
     var constraints = function () {
-        this.options = ["qvga","vga","hd"];
-        this.qvga = function(audio) {
+        this.options = ["qvga", "vga", "hd"];
+
+        this.audioOnly = function() {
+            return new XSockets.UserMediaConstraint({
+                video: false,
+                audio: true
+            });
+        };
+
+        this.qvga = function (audio) {
             return new XSockets.UserMediaConstraint({
                 video: {
                     mandatory: {
@@ -800,7 +838,7 @@ XSockets.UserMediaConstraints = (function () {
             });
         };
         this.vga = function (audio) {
-            return new XSockets.UserMediaConstraint( {
+            return new XSockets.UserMediaConstraint({
                 video: {
                     mandatory: {
                         maxWidth: 640,
@@ -812,7 +850,7 @@ XSockets.UserMediaConstraints = (function () {
             });
         };
         this.hd = function (audio) {
-            return new XSockets.UserMediaConstraint( {
+            return new XSockets.UserMediaConstraint({
                 video: {
                     mandatory: {
                         minWidth: 1280,
@@ -823,7 +861,7 @@ XSockets.UserMediaConstraints = (function () {
             });
         };
         this.create = function (w, h, audio) {
-            return new XSockets.UserMediaConstraint( {
+            return new XSockets.UserMediaConstraint({
                 video: {
                     mandatory: {
                         minWidth: w,
@@ -838,19 +876,19 @@ XSockets.UserMediaConstraints = (function () {
     return constraints;
 })();
 
-XSockets.UserMediaConstraint = (function() {
+XSockets.UserMediaConstraint = (function () {
     var constraint = function (c) {
         var self = this;
-        this.applySources = function() {
+        this.applySources = function () {
         };
         if (arguments.length > 2) {
-                for (var a = 1; a < arguments.length; a++) {
-                    this.extend(self, arguments[a]);
-                }
-            } else {
-                for (var i in c) {
-                    self[i] = c[i];
-                }
+            for (var a = 1; a < arguments.length; a++) {
+                this.extend(self, arguments[a]);
+            }
+        } else {
+            for (var i in c) {
+                self[i] = c[i];
+            }
         }
         this.applySources = function (videoSourceId, audioSourceId) {
 
@@ -861,8 +899,8 @@ XSockets.UserMediaConstraint = (function() {
             if (audioSourceId != "") {
                 if (self.audio) (self["audio"].optional = []).push({ sourceid: audioSourceId });
             } else self.audio = false;
-                
-           
+
+
             return this;
         }
         return this;
@@ -886,7 +924,7 @@ XSockets.WebRTC.DataChannel = (function () {
             return this;
         }
 
-        this.publishBinaryTo = function (id,topic, bytes, data) {
+        this.publishBinaryTo = function (id, topic, bytes, data) {
             if (!self.onpublishbinaryTo) return this;
             self.onpublishbinaryTo(topic, bytes, data);
             return this;
