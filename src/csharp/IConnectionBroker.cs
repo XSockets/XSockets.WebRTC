@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Security.Cryptography.X509Certificates;
+using VideoChatDemo.WebRTC.Controller.Models;
 using XSockets.Core.Common.Socket.Event.Interface;
 using XSockets.WebRTC.Broker.Models;
 
@@ -16,11 +18,14 @@ namespace XSockets.WebRTC.Broker
         /// </summary>
         IPeerConnection Peer { get; set; }
         /// <summary>
+        /// Current user status/information
+        /// </summary>
+        IPresence Presence { get; set; }
+        /// <summary>
         /// Distribute signals (SDP's)
         /// </summary>
         /// <param name="signalingModel"></param>
         void ContextSignal(SignalingModel signalingModel);
-
         /// <summary>
         /// Give this controller a "Generic" behavior
         /// </summary>
@@ -55,5 +60,8 @@ namespace XSockets.WebRTC.Broker
         /// Connect to the current context and Notify peers
         /// </summary>
         void ConnectToContext();
+
+
+        Guid SaveVoiceMessage(IMessage voiceMessage);
     }
 }

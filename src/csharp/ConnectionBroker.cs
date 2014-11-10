@@ -1,20 +1,26 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Threading;
+using VideoChatDemo.WebRTC.Controller.Models;
 using XSockets.Core.Common.Socket.Event.Arguments;
 using XSockets.Core.Common.Socket.Event.Attributes;
 using XSockets.Core.Common.Socket.Event.Interface;
+using XSockets.Core.Common.Utility.Logging;
 using XSockets.Core.XSocket;
 using XSockets.Core.XSocket.Helpers;
+using XSockets.Core.XSocket.Model;
+using XSockets.Plugin.Framework;
 using XSockets.WebRTC.Broker.Constants;
 using XSockets.WebRTC.Broker.Models;
 
 namespace XSockets.WebRTC.Broker
-{
+{ 
     /// <summary>
     /// A custom Peerbroker for WebRTC signaling and WebSocket communication on top of XSockets.NET
     /// </summary>
-    public sealed class ConnectionBroker : XSocketController, IConnectionBroker
+    public sealed  class ConnectionBroker : XSocketController, IConnectionBroker
     {
         #region Public Properties
 
@@ -29,6 +35,9 @@ namespace XSockets.WebRTC.Broker
         /// </summary>
         [NoEvent]
         public IPeerConnection Peer { get; set; }
+
+        [NoEvent]
+        public IPresence Presence { get; set; }
 
         #endregion
 
@@ -56,6 +65,18 @@ namespace XSockets.WebRTC.Broker
         /// <param name="onClientConnectArgs"></param>
         private void _OnOpen(object sender, OnClientConnectArgs onClientConnectArgs)
         {
+            IPresence user = new Presence {Online = true, UserName = "Unknown", Id = this.PersistentId};
+            //Update user
+            if (Core.Utility.Storage.Repository<Guid, IPresence>.ContainsKey(this.PersistentId))
+            {
+                user = Core.Utility.Storage.Repository<Guid, IPresence>.GetById(user.Id);                
+                if (this.HasParameterKey("username"))
+                    user.UserName = this.GetParameter("username");                               
+            }
+            SavePresence(user);
+            var others = Core.Utility.Storage.Repository<Guid, IPresence>.Find(p => p.Id != user.Id);
+            Composable.GetExport<IXLogger>().Information("Others {@a}",others);
+            this.Invoke(others,"allusers");
 
             // Get the context from a parameter if it exists
             var context = Guid.NewGuid();
@@ -72,7 +93,7 @@ namespace XSockets.WebRTC.Broker
                 PeerId = ConnectionId
             };
 
-            this.Invoke(Peer, Events.Context.Created);
+            this.Invoke(Peer, Events.Context.Created);                        
         }
 
         public void GetContext()
@@ -88,6 +109,11 @@ namespace XSockets.WebRTC.Broker
         private void _OnClose(object sender, OnClientDisconnectArgs onClientDisConnectArgs)
         {
             this.NotifyPeerLost();
+            Thread.Sleep(1000);
+            //Update user
+            var user = Core.Utility.Storage.Repository<Guid, IPresence>.GetById(this.PersistentId);
+            user.Online = false;
+            SavePresence(user);
         }
 
         private void NotifyPeerLost()
@@ -147,15 +173,10 @@ namespace XSockets.WebRTC.Broker
             this.NotifyContextChange(context, this.ConnectToContext);
         }
 
-     
+
         public void SetContext(Guid context)
         {
             this.Peer.Context = context;
-        }
-
-        public override void OnMessage(IMessage message)
-        {
-
         }
 
         /// <summary>
@@ -195,8 +216,6 @@ namespace XSockets.WebRTC.Broker
                     Description = description
                 }, Events.Stream.Add);
         }
-
-
         public void ConnectToContext()
         {
             // Pass the client a list of Peers to Connect
@@ -217,5 +236,54 @@ namespace XSockets.WebRTC.Broker
                 callback();
         }
         #endregion
+
+        #region Presence Methods
+
+        public void SetUsername(string username)
+        {
+            var user = Core.Utility.Storage.Repository<Guid, IPresence>.GetById(this.PersistentId);
+            user.UserName = username;
+            SavePresence(user);            
+        }
+
+        public void SetAvailability(Availability availability)
+        {
+            var user = Core.Utility.Storage.Repository<Guid, IPresence>.GetById(this.PersistentId);
+            user.Availability = availability;
+            SavePresence(user);            
+        }
+
+        private void SavePresence(IPresence presence)
+        {
+            var user = Core.Utility.Storage.Repository<Guid, IPresence>.AddOrUpdate(this.PersistentId, presence);
+            this.InvokeToOthers(user, "userupdate");
+        }
+        #endregion
+
+        #region VoiceMessage Methods
+        public Guid SaveVoiceMessage(IMessage message)
+        {
+            var voiceMessage = message.Extract<VoiceMessage>();
+            voiceMessage.Sender = this.PersistentId;   // Mark this peer as sender
+            voiceMessage.Bytes = message.Blob.ToArray();
+            Core.Utility.Storage.Repository<Guid, IVoiceMessage>.AddOrUpdate(voiceMessage.Id, voiceMessage);
+            return voiceMessage.Id;
+        }
+
+        public void GetVoiceMessage(Guid id)
+        {
+            var voiceMessage = Core.Utility.Storage.Repository<Guid, IVoiceMessage>.GetById(id);
+
+            this.Invoke(voiceMessage.Bytes.ToArray(), new {voiceMessageId = voiceMessage.Id},"voicemessage");
+        }
+        public object CheckVoiceMessages()
+        {
+            var voiceMessages = Core.Utility.Storage.Repository<Guid, IVoiceMessage>
+                .Find(q => q.Recipient == this.PersistentId)
+                .Select(m => new {m.Created, m.Id, m.Sender,Size = m.Bytes.Count()});
+            return voiceMessages;
+        } 
+#endregion 
+
     }
 }
