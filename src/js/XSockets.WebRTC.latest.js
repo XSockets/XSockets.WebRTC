@@ -1,4 +1,28 @@
-﻿var RTCPeerConnection = null;
+﻿(function () {
+    var lastTime = 0;
+    var vendors = ['webkit', 'moz'];
+    for (var x = 0; x < vendors.length && !window.requestAnimationFrame; ++x) {
+        window.requestAnimationFrame = window[vendors[x] + 'RequestAnimationFrame'];
+        window.cancelAnimationFrame =
+          window[vendors[x] + 'CancelAnimationFrame'] || window[vendors[x] + 'CancelRequestAnimationFrame'];
+    }
+    if (!window.requestAnimationFrame)
+        window.requestAnimationFrame = function (callback, element) {
+            var currTime = new Date().getTime();
+            var timeToCall = Math.max(0, 16 - (currTime - lastTime));
+            var id = window.setTimeout(function () { callback(currTime + timeToCall); },
+              timeToCall);
+            lastTime = currTime + timeToCall;
+            return id;
+        };
+
+    if (!window.cancelAnimationFrame)
+        window.cancelAnimationFrame = function (id) {
+            clearTimeout(id);
+        };
+}());
+
+var RTCPeerConnection = null;
 var getUserMedia = null;
 var attachMediaStream = null;
 var reattachMediaStream = null;
@@ -297,7 +321,7 @@ XSockets.WebRTC = (function () {
 
         this.supportsMediaSources = function () {
             /// <summary>Determin if the clients can enumerate and/or supports MediaSources</summary>
-            return typeof MediaStreamTrack === 'undefined';
+            return typeof window.MediaStreamTrack === 'undefined';
         };
 
         this.muteAudio = function (cb) {
@@ -497,7 +521,7 @@ XSockets.WebRTC = (function () {
         };
 
 
-        this.onerror = function (ex) { console.log(ex) };
+        this.onerror = function (ex) { console.log(ex); };
 
         this.Connections = [];
         this.rtcPeerConnection = function (configuration, peerId, cb) {
@@ -771,11 +795,11 @@ XSockets.WebRTC.PresenceManager = (function() {
 XSockets.WebRTC.MediaSource = (function () {
     var mediaSources = function () {
         this.getSources = function (cb) {
-            if (typeof MediaStreamTrack === 'undefined') {
+            if (typeof window.MediaStreamTrack === 'undefined') {
                 console.log('This browser does not support MediaStreamTrack');
                 return null;
             } else {
-                MediaStreamTrack.getSources(function (results) {
+                window.MediaStreamTrack.getSources(function (results) {
                     var sources = results.map(function (sourceInfo, i) {
                         return { id: sourceInfo.id, kind: sourceInfo.kind, label: sourceInfo.label || sourceInfo.kind + " - " + i };
                     });
@@ -784,10 +808,7 @@ XSockets.WebRTC.MediaSource = (function () {
             }
             return this;
         };
-
-
     };
-
     return mediaSources;
 })();
 
@@ -875,6 +896,190 @@ XSockets.UserMediaConstraints = (function () {
     };
     return constraints;
 })();
+
+//var Camera = (function () {
+//    var localStream;
+
+//    function Camera() {
+//    }
+
+//    Camera.prototype.start = function (cb) {
+//        this.isRunning = true;
+//        getUserMedia({ audio: false, video: true }, function (s) {
+//            localStream = s;
+//            cb(localStream);
+//        }, function (e) {
+//        });
+//    };
+//    Camera.prototype.stop = function () {
+//        localStream.stop();
+//        this.isRunning = false;
+//    };
+//    Camera.prototype.takePhoto = function (video, cb) {
+//        var canvas = document.createElement("canvas");
+//        canvas.width = 1280;
+//        canvas.height = 720;
+//        var context = canvas.getContext('2d');
+//        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+//        var base64 = canvas.toDataURL();
+//        cb(base64);
+//    };
+//    Camera.prototype.isRunning = false;
+
+//    return Camera;
+
+//})();
+
+
+ XSockets.WebRTC.AudioPlayer = (function () {
+    function audio() {
+        this.audioBuffers = {};
+        this.keys = [];
+        this.context = new AudioContext();
+        this.sources = {};
+    }
+    audio.prototype.load = function (key, url,fn) {
+        var that = this;
+        this.keys.unshift(key);
+        var request = new XMLHttpRequest();
+        request.open('GET', url, true);
+        request.responseType = 'arraybuffer';
+        request.onload = function () {
+            that.context.decodeAudioData(request.response, function (buffer) {
+                that.audioBuffers[key] = buffer;
+                if (fn) fn(key);
+                if(that.completed)
+                    that.completed(key);
+               
+            }, function(err) {
+                that.error(err);
+            });
+        };
+        request.send();
+        return this;
+    };
+
+     audio.prototype.createBuffer = function(key, arrayBuffer) {
+         var that = this;
+         this.keys.unshift(key);
+
+         var source = this.context.createBufferSource(); // Create Sound Source 
+         var buffer = this.context.createBuffer(arrayBuffer, true);
+         source.buffer = buffer; // Add Buffered Data to Object 
+         source.connect(context.destination); // Connect Sound Source to Output 
+         source.start(context.currentTime); // Play the Source when Triggered
+
+
+     };
+
+    audio.prototype.error = function() {
+        console.error(error);
+    }
+
+    audio.prototype.completed = function () {
+    };
+    audio.prototype.play = function (key) {
+        this.sources[key] = this.context.createBufferSource();
+      
+        this.sources[key].buffer = this.audioBuffers[key];
+        this.sources[key].connect(this.context.destination);
+        if (!this.sources[key].start) {
+            this.sources[key].noteOn(0);
+        } else {
+            this.sources[key].start();
+        }
+        return this;
+    };
+    audio.prototype.pause = function (key) {
+        this.sources[key].stop(0);
+    };
+    return audio;
+})();
+
+
+XSockets.WebRTC.VoiceMessage = (function () {
+    var recorder;
+    var voiceMessage = function (options) {
+        var self = this;
+        if (!"Recorder" in window)
+            throw "You need to reference Matt Diamons recorderJS,https://github.com/mattdiamond/Recorderjs";
+        this.audioContext = new AudioContext();
+        this.input = null;
+        options = options || {
+            maxRecordingTime: 4000
+        }
+
+        this.created = null;
+        this.isRecording = false;
+      
+        this.loop = function () {
+            if (!self.isRecording) return;
+            var justNow = new Date();
+            var elapsed = justNow - self.created;
+            if (self.timeElapsed) {
+               
+                self.timeElapsed(elapsed, justNow, self.created);
+                if (elapsed >= options.maxRecordingTime) {
+                  
+                    self.isRecording = false;
+                    self.stop();
+                    self.recordingElapsed();
+                }
+            }
+            if (self.isRecording)
+                requestAnimationFrame(self.loop);
+        };
+    }
+    voiceMessage.prototype.addSteam = function (stream) {
+        this.input = this.audioContext.createMediaStreamSource(stream);
+        this.input.connect(this.audioContext.destination);
+        recorder = new Recorder(this.input);
+    };
+    voiceMessage.prototype.start = function () {
+        this.created = new Date();
+        this.isRecording = true;
+        recorder.record();
+        requestAnimationFrame(this.loop);
+        return this;
+    };
+    voiceMessage.prototype.stop = function () {
+        recorder.stop();
+        var that = this;
+        recorder.exportWAV(function (blob) {
+
+            var arrayBuffer;
+            var fileReader = new FileReader();
+            fileReader.onload = function () {
+                arrayBuffer = this.result;
+                that.completed(arrayBuffer);
+            };
+            fileReader.readAsArrayBuffer(blob);
+
+           
+
+
+        });
+        return this;
+
+    };
+    voiceMessage.prototype.recordingElapsed = function () {
+    }
+    voiceMessage.prototype.timeElapsed = function (ts) {
+        console.log(ts);
+    };
+    voiceMessage.prototype.completed = function (fn) {
+        
+        recorder.exportWAV(function (blob) {
+            fn(blob);
+        });
+    };
+
+    return voiceMessage;
+
+
+})();
+
+
 
 XSockets.UserMediaConstraint = (function () {
     var constraint = function (c) {
