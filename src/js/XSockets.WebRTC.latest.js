@@ -623,10 +623,17 @@ XSockets.WebRTC = (function () {
 
             this.Connection.onaddstream = function (event) {
                 remoteStreams.push({ id: event.stream.id, peerId: that.PeerId });
-                event.stream.onended = function () {
+                event.stream.onended = function (evt) {
                     self.dispatch(XSockets.WebRTC.Events.onremotestreamlost, {
-                        PeerId: that.PeerId
+                        PeerId: that.PeerId,
+                        stream: evt.target
                     });
+                    var index = remoteStreams.map(function (a, b) {
+                        if (a.id === evt.target.id) return b;
+                        return -1;
+                    });
+                    if (index > -1) remoteStreams.splice(index, 1);
+
                 };
                 self.dispatch(XSockets.WebRTC.Events.onremotestream, {
                     PeerId: that.PeerId,
@@ -767,7 +774,7 @@ XSockets.WebRTC = (function () {
 })();
 
 
-XSockets.WebRTC.PresenceManager = (function() {
+XSockets.WebRTC.PresenceManager = (function () {
     var presenceManager = function (ctrl) {
         this.Availability = {
             Available: "Available",
@@ -775,7 +782,7 @@ XSockets.WebRTC.PresenceManager = (function() {
             DoNotDisturb: "DoNotDisturb"
         }
         this.instanceId = XSockets.Utils.guid();
-        this.setUsername = function(username,cb) {
+        this.setUsername = function (username, cb) {
             ctrl.invoke("SetUsername", { username: username });
             if (cb) cb(username);
         };
@@ -816,7 +823,7 @@ XSockets.UserMediaConstraints = (function () {
     var constraints = function () {
         this.options = ["qvga", "vga", "hd"];
 
-        this.audioOnly = function() {
+        this.audioOnly = function () {
             return new XSockets.UserMediaConstraint({
                 video: false,
                 audio: true
@@ -931,14 +938,14 @@ XSockets.UserMediaConstraints = (function () {
 //})();
 
 
- XSockets.WebRTC.AudioPlayer = (function () {
+XSockets.WebRTC.AudioPlayer = (function () {
     function audio() {
         this.audioBuffers = {};
         this.keys = [];
         this.context = new AudioContext();
         this.sources = {};
     }
-    audio.prototype.load = function (key, url,fn) {
+    audio.prototype.load = function (key, url, fn) {
         var that = this;
         this.keys.unshift(key);
         var request = new XMLHttpRequest();
@@ -948,10 +955,10 @@ XSockets.UserMediaConstraints = (function () {
             that.context.decodeAudioData(request.response, function (buffer) {
                 that.audioBuffers[key] = buffer;
                 if (fn) fn(key);
-                if(that.completed)
+                if (that.completed)
                     that.completed(key);
-               
-            }, function(err) {
+
+            }, function (err) {
                 that.error(err);
             });
         };
@@ -959,20 +966,20 @@ XSockets.UserMediaConstraints = (function () {
         return this;
     };
 
-     audio.prototype.createBuffer = function(key, arrayBuffer) {
-         var that = this;
-         this.keys.unshift(key);
+    audio.prototype.createBuffer = function (key, arrayBuffer) {
+        var that = this;
+        this.keys.unshift(key);
 
-         var source = this.context.createBufferSource(); // Create Sound Source 
-         var buffer = this.context.createBuffer(arrayBuffer, true);
-         source.buffer = buffer; // Add Buffered Data to Object 
-         source.connect(context.destination); // Connect Sound Source to Output 
-         source.start(context.currentTime); // Play the Source when Triggered
+        var source = this.context.createBufferSource(); // Create Sound Source 
+        var buffer = this.context.createBuffer(arrayBuffer, true);
+        source.buffer = buffer; // Add Buffered Data to Object 
+        source.connect(context.destination); // Connect Sound Source to Output 
+        source.start(context.currentTime); // Play the Source when Triggered
 
 
-     };
+    };
 
-    audio.prototype.error = function() {
+    audio.prototype.error = function () {
         console.error(error);
     }
 
@@ -980,7 +987,7 @@ XSockets.UserMediaConstraints = (function () {
     };
     audio.prototype.play = function (key) {
         this.sources[key] = this.context.createBufferSource();
-      
+
         this.sources[key].buffer = this.audioBuffers[key];
         this.sources[key].connect(this.context.destination);
         if (!this.sources[key].start) {
@@ -1011,16 +1018,16 @@ XSockets.WebRTC.VoiceMessage = (function () {
 
         this.created = null;
         this.isRecording = false;
-      
+
         this.loop = function () {
             if (!self.isRecording) return;
             var justNow = new Date();
             var elapsed = justNow - self.created;
             if (self.timeElapsed) {
-               
+
                 self.timeElapsed(elapsed, justNow, self.created);
                 if (elapsed >= options.maxRecordingTime) {
-                  
+
                     self.isRecording = false;
                     self.stop();
                     self.recordingElapsed();
@@ -1055,7 +1062,7 @@ XSockets.WebRTC.VoiceMessage = (function () {
             };
             fileReader.readAsArrayBuffer(blob);
 
-           
+
 
 
         });
@@ -1068,7 +1075,7 @@ XSockets.WebRTC.VoiceMessage = (function () {
         console.log(ts);
     };
     voiceMessage.prototype.completed = function (fn) {
-        
+
         recorder.exportWAV(function (blob) {
             fn(blob);
         });
@@ -1161,7 +1168,7 @@ XSockets.WebRTC.Events = {
     onlocalstream: "localstream",
     onlocalstreamcreated: "streamadded",
     onremotestream: "remotestream",
-    onremotestreamlost: "removestream",
+    onremotestreamlost: "remotestreamlost",
     oncontextchange: "contextchanged",
     oncontextcreated: "contextcreated",
     onconnectionstart: "connectionstarted",
