@@ -437,10 +437,10 @@ XSockets.WebRTC = (function () {
             if (fn) fn(id);
         };
         this.addLocalStream = function (stream, cb) {
+            if (!stream.id) stream.id = XSockets.Utils.guid();
             var index = localStreams.push(stream);
-            // Check it there is PeerConnections 
             controller.invoke("addStream", {
-                streamId: stream.id,
+                streamId: stream.id ,
                 description: ""
             });
             self.dispatch(XSockets.WebRTC.Events.onlocalstream, stream);
@@ -478,6 +478,7 @@ XSockets.WebRTC = (function () {
             }
 
             window.getUserMedia(constraints, function (stream) {
+                if (!stream.id) stream.id = XSockets.Utils.guid();
                 localStreams.push(stream);
                 controller.invoke("addStream", {
                     streamId: stream.id,
@@ -622,6 +623,7 @@ XSockets.WebRTC = (function () {
             };
 
             this.Connection.onaddstream = function (event) {
+                if (!event.stream.id) event.stream.id = XSockets.Utils.guid();
                 remoteStreams.push({ id: event.stream.id, peerId: that.PeerId });
                 event.stream.onended = function (evt) {
                     self.dispatch(XSockets.WebRTC.Events.onremotestreamlost, {
@@ -633,7 +635,6 @@ XSockets.WebRTC = (function () {
                         return -1;
                     });
                     if (index > -1) remoteStreams.splice(index, 1);
-
                 };
                 self.dispatch(XSockets.WebRTC.Events.onremotestream, {
                     PeerId: that.PeerId,
