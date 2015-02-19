@@ -3,6 +3,12 @@
 
 This repo contains the full source code of the [XSockets.NET][1]  WebRTC experiments.  
 
+### Tutorial
+
+Have a look at the video tutorials of XSockets.NET.  You will find a few videos and complete code examples (GitHub Repo) that can be of importance.
+
+[http://xsockets.net/academy](http://xsockets.net/academy)
+
 ###Simple WebRTC application
 
 We have created a simple demo package available on Nuget. This package gives you a very simple "video conference". The demo allows 1-n clients to connect and share MediaStreems.
@@ -146,7 +152,29 @@ This expression parses and modifies the sdp and limits the video bandwidth 256 k
              'a=mid:video\r\nb=AS:256\r\n');
     }]
 
-Expressions are passed 
+####addIceSevers(iceServers)
+
+You can add additional iceServer configurations after that you created an instance of XSockets.WebRTC.  Note you will need to add additional iceServers before you call `connextConnect() `
+
+	var myAdditionalIceServers =
+           [{
+                "url": "stun:stun.l.google.com:19302"
+            },
+			{
+                "url": "stun:stun.l.google.com:19303"
+            }];
+
+    rtc.addIceServers(myAdditionalIceServers);
+
+###createIceServer(url,*username*,*password*)
+
+This method is a helper that creates iceServer config elements. Depending on scheme (turn/stun) the proper config elements are created.  
+
+    var iceServer = createIceServer("turn:myturnserver.net","myUser","myPwd");
+
+    // iceServer = "{"url":"turn:myturnserver.net","credential":"myPwd","username":"myUser"}"
+    	
+	 
 
 ###Context Events
 ####oncontextcreated
