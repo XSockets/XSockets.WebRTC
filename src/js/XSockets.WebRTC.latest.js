@@ -286,7 +286,13 @@ XSockets.WebRTC = (function () {
             },
             sdpExpressions: []
         };
-        var options = XSockets.Utils.extend(defaults, settings);;
+        var options = XSockets.Utils.extend(defaults, settings);
+
+        this.addIceServers = function(iceServers) {
+            iceServers.forEach(function (iceServer) {
+                options.iceServers.push(iceServer);
+            });
+        }
 
         this.userMediaConstraints = new XSockets.UserMediaConstraints();
 
@@ -440,7 +446,7 @@ XSockets.WebRTC = (function () {
             if (!stream.id) stream.id = XSockets.Utils.guid();
             var index = localStreams.push(stream);
             controller.invoke("addStream", {
-                streamId: stream.id ,
+                streamId: stream.id,
                 description: ""
             });
             self.dispatch(XSockets.WebRTC.Events.onlocalstream, stream);
@@ -726,10 +732,15 @@ XSockets.WebRTC = (function () {
                 controller.invoke("contextsignal", answer);
             }, function (ex) { self.onerror(ex); }, options.sdpConstraints);
         });
-        controller.contextcreated = function (context) {
+
+
+        controller.contextcreated = function(context) {
             self.CurrentContext = new XSockets.PeerContext(context.PeerId, context.Context);
             self.dispatch(XSockets.WebRTC.Events.oncontextcreated, context);
         };
+    
+        
+
         controller.contextsignal = function (signal) {
             var msg = JSON.parse(signal.Message);
             self.dispatch(msg.type, signal);
