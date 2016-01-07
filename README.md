@@ -1,23 +1,7 @@
 
-#XSockets.NET - WebRTC
+#XSockets.NET - WebRTC API
 
-This repo contains the full source code of the [XSockets.NET][1]  WebRTC experiments.  
-
-### Tutorial
-
-Have a look at the video tutorials of XSockets.NET.  You will find a few videos and complete code examples (GitHub Repo) that can be of importance.
-
-[http://xsockets.net/academy](http://xsockets.net/academy)
-
-###Simple WebRTC application
-
-We have created a simple demo package available on Nuget. This package gives you a very simple "video conference". The demo allows 1-n clients to connect and share MediaStreems.
-
-    PM> Install Package XSockets.Sample.WebRTC
-
-
-You can alsoo find a blog post on the following link:
-http://xsockets.net/blog/tutorial-building-a-multivideo-chat-with-webrtc
+This repo contains JavaScript API's of the [XSockets.NET][1]  WebRTC implementations.  
 
 ##Pre-Req
 
@@ -28,17 +12,6 @@ Install XSockets.NET Realtime framework into your Visual Studio solution by usin
 Open the Package Manager console and type the following command.
 
     PM> Install-Package XSockets.Sample.WebRTC
-
-##Testing WebRTC
-When installation is completed just follow these steps
-
- 1. Under WebRTCSample\Client right click on index.html and select "set as startpage"
- 2. Right click the project and select properties.
- 3. Under the "Web" tab go to the "Servers" section and set Use Visual Studio Development Server
- 4. Open a few instances of chrome to the same URL and try it out.
-
-To build your own conference solution is really easy. Consult the [XSockets.NET developer forum][1] for help and guidance.
-
 
 *To learn more about the WebRTC API, read the API-Guide below*
 
@@ -57,13 +30,8 @@ You can get XSockets.NET for free as a developer using Nuget. Read more about XS
 The code  connection broker can be found in the XSockest.NET WebRTC repo
 
 ###Client support
-The WebRTC experiment of ours ( Team XSockets.NET Sweden AB) is tested on the following browsers per the 10th of October 2014
 
-     - Google Chrome 37 
-     - Google Chrome Canary 40
-     - Firefox 31
-     - Firefox Aurora
-     - Opera 24
+Chrome, Opera & Firefox
     
 *All functionality (RTCPeerConnection, MediaStreams and RTCDataChannels) works cross-browsers (according to the list above)* 
 
