@@ -448,9 +448,9 @@ XSockets.WebRTC = (function () {
             /// <param name="id" type="Object">PeerConnection id</param>
             /// <param name="fn" type="Object">callback that will be invoked when completed.</param>
 
-            //localStreams.forEach(function (stream, index) {
-            //    self.PeerConnections[id].Connection.removeStream(localStreams[index]);
-            //});
+            localStreams.forEach(function (stream, index) {
+                self.PeerConnections[id].Connection.removeStream(localStreams[index]);
+            });
 
 
             self.createOffer({
@@ -778,13 +778,13 @@ XSockets.WebRTC = (function () {
             });
         };
         controller.connectiondisconnect = function (peer) {
-            if (self.PeerConnections[peer.Sender] !== undefined) {
-                self.PeerConnections[peer.Sender].Connection.close();
-                self.dispatch(XSockets.WebRTC.Events.onconnectionlost, {
-                    PeerId: peer.Sender
-                });
+            //if (self.PeerConnections[peer.Sender] !== undefined) {
+            //    self.PeerConnections[peer.Sender].Connection.close();
+            //    self.dispatch(XSockets.WebRTC.Events.onconnectionlost, {
+            //        PeerId: peer.Sender
+            //    });
                 delete self.PeerConnections[peer.Sender];
-            }
+           // }
         };
         controller.streamadded = function (event) {
             self.dispatch(XSockets.WebRTC.Events.onlocalstreamcreated, event);
@@ -1215,4 +1215,5 @@ XSockets.WebRTC.Events = {
     onconnectionlost: "connectionlost",
     onoffer: 'sdoffer',
     onanwer: 'sdanswer'
+   
 };
