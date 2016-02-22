@@ -38,8 +38,7 @@
     var main = (function () {
         var broker;
         var rtc;
-        trace("Ready , main called, setting up stuff...");
-
+        trace("Ready");
         trace("Try connect the connectionBroker");
         var ws = new XSockets.WebSocket("wss://rtcplaygrouund.azurewebsites.net:443", ["connectionbroker"], {
             ctx: '13fbc61c-541a-4c0d-b46e-1a1f6473720a'
@@ -64,14 +63,19 @@
             $(".remotevideos").removeChild(videoToRemove);
         };
 
+        var oncConnectionCreated = function() {
+            trace("oncconnectioncreated", arguments);
+        }
+
         var onGetUerMedia = function(stream) {
-            trace("Successfully got some userMedia , hopefully a goat will appear..", stream);
+            trace("Successfully got some userMedia , hopefully a goat will appear..");
             rtc.connectToContext(); // connect to the current context?
         };
 
         var onRemoteStream = function (remotePeer) {
-            trace("Opps, we got a remote stream. lets see if its a goat..");
+         
             addRemoteVideo(remotePeer.PeerId, remotePeer.stream);
+            trace("Opps, we got a remote stream. lets see if its a goat..");
         };
 
         var onLocalStream = function(mediaStream) {
@@ -87,7 +91,7 @@
             rtc = new XSockets.WebRTC(this);
             rtc.onlocalstream = onLocalStream;
             rtc.oncontextcreated = onContextCreated;
-            rtc.onconnectioncreated = onConnectionCreated;
+            rtc.onconnectioncreated = oncConnectionCreated;
             rtc.onconnectionlost = onConnectionLost;
            
             rtc.onremotestream = onRemoteStream;
