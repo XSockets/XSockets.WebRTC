@@ -1,0 +1,29 @@
+body {
+    
+}
+
+
+.localvideo {
+    position: absolute;
+    right: 10px;
+    top: 10px;
+}
+
+.localvideo video {
+    max-width: 240px;
+    width:100%;
+    margin-right:auto;
+    margin-left:auto;
+    border: 2px solid #333;
+
+}
+.remotevideos {
+    height:120px;
+    background:#dadada;
+    padding:10px; 
+}
+
+.remotevideos video{
+    max-height:120px;
+    float:left;
+}

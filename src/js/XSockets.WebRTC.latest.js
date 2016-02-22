@@ -570,19 +570,16 @@ XSockets.WebRTC = (function () {
 
             }, null);
             this.Connection.oniceconnectionstatechange = function (event) {
-
-                if (that.Connection.iceConnectionState === 'disconnected') {
+                var target = event.target;
+                if (target.iceConnectionState === "disconnected"){
                     self.dispatch(XSockets.WebRTC.Events.onconnectionlost, {
                         PeerId: that.PeerId
                     });
-                } else if (that.Connection.iceConnectionState === "connected") {
+                } else if (target.iceConnectionState === "connected") {
                     self.dispatch(XSockets.WebRTC.Events.onconnectioncreated, {
                         PeerId: that.PeerId
                     });
-                }
-
-
-
+                };
                 self.dispatch(event.type, event);
             };
             this.Connection.onnegotiationneeded = function (event) {

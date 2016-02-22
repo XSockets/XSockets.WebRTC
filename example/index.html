@@ -1,0 +1,110 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <title>XSockets.WebRTC Client example</title>
+    <meta charset="utf-8" />
+    <link href="css/example.css" rel="stylesheet" />
+
+
+</head>
+<body>
+    <h1>XSockets.WebRTC Client example </h1>
+    <div class="localvideo">
+        <video autoplay></video>
+    </div>
+
+<div class="remotevideos">
+   
+</div>
+
+<h2>debug</h2>
+<div id="immediate"></div>
+
+<script src="js/XSockets.latest.min.js"></script>
+    <script src="../src/js/XSockets.WebRTC.latest.js"></script>
+<script>
+    
+    var $ = function(selector,el) {
+        if (!el) el = document;
+        return el.querySelector(selector);
+    }
+
+    var trace = function(what,obj) {
+        var pre = document.createElement("pre");
+        pre.textContent = JSON.stringify(what) + " - "  +JSON.stringify(obj || "" );
+        $("#immediate").appendChild(pre);
+    };
+
+    var main = (function () {
+        var broker;
+        var rtc;
+        trace("Ready , main called, setting up stuff...");
+
+        trace("Try connect the connectionBroker");
+        var ws = new XSockets.WebSocket("wss://rtcplaygrouund.azurewebsites.net:443", ["connectionbroker"], {
+            ctx: '13fbc61c-541a-4c0d-b46e-1a1f6473720a'
+        });
+
+        var onError = function(err) {
+            trace("error", arguments);
+        };
+
+        var addRemoteVideo = function(peerId,mediaStream) {
+            var remoteVideo = document.createElement("video");
+            remoteVideo.setAttribute("autoplay", "autoplay");
+            remoteVideo.setAttribute("rel",peerId);
+            attachMediaStream(remoteVideo, mediaStream);
+            $(".remotevideos").appendChild(remoteVideo);
+        };
+
+        var onConnectionLost = function (remotePeer) {
+            trace("onconnectionlost", arguments);
+            var peerId = remotePeer.PeerId;
+            var videoToRemove = $("video[rel='" + peerId + "']");
+            $(".remotevideos").removeChild(videoToRemove);
+        };
+
+        var onGetUerMedia = function(stream) {
+            trace("Successfully got some userMedia , hopefully a goat will appear..", stream);
+            rtc.connectToContext(); // connect to the current context?
+        };
+
+        var onRemoteStream = function (remotePeer) {
+            trace("Opps, we got a remote stream. lets see if its a goat..");
+            addRemoteVideo(remotePeer.PeerId, remotePeer.stream);
+        };
+
+        var onLocalStream = function(mediaStream) {
+            trace("Got a localStream", mediaStream.id);
+            attachMediaStream($(".localvideo video "), mediaStream);
+        };
+        var onContextCreated = function(ctx) {
+            trace("RTC object created, and a context is created - ", ctx);
+            rtc.getUserMedia(rtc.userMediaConstraints.hd(false), onGetUerMedia, onError);
+        };
+        var onOpen = function() {
+            trace("Connected to the brokerController - 'connectionBroker'");
+            rtc = new XSockets.WebRTC(this);
+            rtc.onlocalstream = onLocalStream;
+            rtc.oncontextcreated = onContextCreated;
+            rtc.onconnectioncreated = onConnectionCreated;
+            rtc.onconnectionlost = onConnectionLost;
+           
+            rtc.onremotestream = onRemoteStream;
+
+        };
+
+        var onConnected = function() {
+            trace("connection to the 'broker' server is established");
+            trace("Try get the broker controller form server..");
+            broker = ws.controller("connectionbroker");
+            broker.onopen = onOpen;
+        };
+        ws.onconnected = onConnected;
+    });
+
+    document.addEventListener("DOMContentLoaded", main);
+
+</script>
+</body>
+</html>
