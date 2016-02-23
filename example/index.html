@@ -13,11 +13,15 @@
         <video autoplay></video>
     </div>
 
+<h2>Remote videos</h2>
 <div class="remotevideos">
-   
-</div>
 
-<h2>debug</h2>
+</div>
+<h2>Recordings  ( Click on your camera stream to start record)</h2>
+<ul></ul>
+
+
+<h2>Trace</h2>
 <div id="immediate"></div>
 
 <script src="js/XSockets.latest.min.js"></script>
@@ -41,11 +45,33 @@
         trace("Ready");
         trace("Try connect the connectionBroker");
         var ws = new XSockets.WebSocket("wss://rtcplaygrouund.azurewebsites.net:443", ["connectionbroker"], {
-            ctx: '13fbc61c-541a-4c0d-b46e-1a1f6473720a'
+            ctx: '23fbc61c-541a-4c0d-b46e-1a1f6473720a'
         });
 
         var onError = function(err) {
             trace("error", arguments);
+        };
+
+        var recordMediaStream = function (stream) {
+            if ("MediaRecorder" in window === false) {
+                trace("Recorder not started MediaRecorder not available in this browser. ");
+                return;
+
+            }
+            var recorder = new XSockets.MediaRecorder(stream);
+            recorder.start();
+            trace("Recorder started.. ");
+            recorder.oncompleted = function(blob,blobUrl) {
+                trace("Recorder completed.. ");
+                var li = document.createElement("li");
+                var download = document.createElement("a");
+                download.textContent = new Date();
+                download.setAttribute("download", XSockets.Utils.randomString(8) + ".webm");
+                download.setAttribute("href", blobUrl);
+                li.appendChild(download);
+                $("ul").appendChild(li);
+
+            };
         };
 
         var addRemoteVideo = function(peerId,mediaStream) {
@@ -55,18 +81,15 @@
             attachMediaStream(remoteVideo, mediaStream);
             $(".remotevideos").appendChild(remoteVideo);
         };
-
         var onConnectionLost = function (remotePeer) {
             trace("onconnectionlost", arguments);
             var peerId = remotePeer.PeerId;
             var videoToRemove = $("video[rel='" + peerId + "']");
             $(".remotevideos").removeChild(videoToRemove);
         };
-
         var oncConnectionCreated = function() {
             trace("oncconnectioncreated", arguments);
-        }
-
+        };
         var onGetUerMedia = function(stream) {
             trace("Successfully got some userMedia , hopefully a goat will appear..");
             rtc.connectToContext(); // connect to the current context?
@@ -77,10 +100,13 @@
             addRemoteVideo(remotePeer.PeerId, remotePeer.stream);
             trace("Opps, we got a remote stream. lets see if its a goat..");
         };
-
         var onLocalStream = function(mediaStream) {
             trace("Got a localStream", mediaStream.id);
             attachMediaStream($(".localvideo video "), mediaStream);
+            // if user click, video , call the recorder
+            $(".localvideo video ").addEventListener("click", function() {
+                recordMediaStream(rtc.getLocalStreams()[0]);
+            });
         };
         var onContextCreated = function(ctx) {
             trace("RTC object created, and a context is created - ", ctx);
@@ -89,11 +115,11 @@
         var onOpen = function() {
             trace("Connected to the brokerController - 'connectionBroker'");
             rtc = new XSockets.WebRTC(this);
+
             rtc.onlocalstream = onLocalStream;
             rtc.oncontextcreated = onContextCreated;
             rtc.onconnectioncreated = oncConnectionCreated;
             rtc.onconnectionlost = onConnectionLost;
-           
             rtc.onremotestream = onRemoteStream;
 
         };
@@ -106,7 +132,6 @@
         };
         ws.onconnected = onConnected;
     });
-
     document.addEventListener("DOMContentLoaded", main);
 
 </script>

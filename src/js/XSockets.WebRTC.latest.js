@@ -141,6 +141,7 @@ else if (navigator.webkitGetUserMedia) {
 else {
     console.log("Browser does not appear to be WebRTC-capable");
 }
+
 window.requestAnimFrame = (function () {
     return window.requestAnimationFrame || window.webkitRequestAnimationFrame || window.mozRequestAnimationFrame ||
     function (callback) {
@@ -263,8 +264,6 @@ XSockets.WebRTC = (function () {
 
         var subscriptions = new XSockets.Subscriptions();
 
-
-        this.presense = new XSockets.WebRTC.PresenceManager(controller);
 
 
         this.PeerConnections = {};
@@ -720,7 +719,7 @@ XSockets.WebRTC = (function () {
             }));
         });
         self.bind("answer", function (event) {
-            self.dispatch(XSockets.WebRTC.Events.onanwer, {
+            self.dispatch(XSockets.WebRTC.Events.onanswer, {
                 PeerId: event.Sender
             });
             self.PeerConnections[event.Sender].Connection.setRemoteDescription(new RTCSessionDescription(JSON.parse(event.Message)));
@@ -807,31 +806,6 @@ XSockets.WebRTC = (function () {
     return instance;
 })();
 
-
-XSockets.WebRTC.PresenceManager = (function () {
-    var presenceManager = function (ctrl) {
-        this.Availability = {
-            Available: "Available",
-            Away: "Away",
-            DoNotDisturb: "DoNotDisturb"
-        }
-        this.instanceId = XSockets.Utils.guid();
-        this.setUsername = function (username, cb) {
-            ctrl.invoke("SetUsername", { username: username });
-            if (cb) cb(username);
-        };
-
-        this.setAvailability = function (availability, cb) {
-            ctrl.invoke("SetAvailability", { availability: Object.keys(this.Availability).indexOf(availability) });
-            if (cb) cb(availability);
-        }
-        this.parse = function (id) {
-            var keys = Object.keys(this.Availability);
-            return keys[id].toLowerCase();
-        };
-    };
-    return presenceManager;
-})();
 
 XSockets.WebRTC.MediaSource = (function () {
     var mediaSources = function () {
@@ -938,38 +912,48 @@ XSockets.UserMediaConstraints = (function () {
     return constraints;
 })();
 
-//var Camera = (function () {
-//    var localStream;
+XSockets.MediaRecorder = (function () {
+    var recorder = function (stream, options) {
+        var self = this;
+        this.options = options || { mimeType: "video/webm", ignoreMutedMedia: false };
+        var mediaRecorder = new MediaRecorder(stream, this.options);
+        var handleStop = function (event) {
+            self.isRecording = false;
+            var blob = new Blob(self.blobs, { type: self.options.mimeType });
+            self.oncompleted.apply(self, [blob, URL.createObjectURL(blob)]);
+        };
+        var handleDataAvailable = function (event) {
+            if (event.data && event.data.size > 0)
+                self.blobs.push(event.data);
+        };
+        mediaRecorder.onstop = handleStop;
+        mediaRecorder.ondataavailable = handleDataAvailable;
+        this.mediaRecorder = mediaRecorder;
+    };
+    recorder.prototype.oncompleted = function () {
+    };
 
-//    function Camera() {
-//    }
+    recorder.prototype.stop = function () {
+        var mediaRecorder = this.mediaRecorder;
+        mediaRecorder.stop();
+    }
+    recorder.prototype.blobs = [];
+    recorder.prototype.start = function (stopafter) {
+        this.blobs.length = 0;
+        this.isRecording = true;
+        var mediaRecorder = this.mediaRecorder;
+        var timeOut = window.setTimeout(function () {
+           
+            mediaRecorder.stop();
+            window.clearTimeout(timeOut);
+        }, stopafter || 3000);
+        mediaRecorder.start(30);
+    };
+    recorder.prototype.isRecording = false;
+    return recorder;
 
-//    Camera.prototype.start = function (cb) {
-//        this.isRunning = true;
-//        getUserMedia({ audio: false, video: true }, function (s) {
-//            localStream = s;
-//            cb(localStream);
-//        }, function (e) {
-//        });
-//    };
-//    Camera.prototype.stop = function () {
-//        localStream.stop();
-//        this.isRunning = false;
-//    };
-//    Camera.prototype.takePhoto = function (video, cb) {
-//        var canvas = document.createElement("canvas");
-//        canvas.width = 1280;
-//        canvas.height = 720;
-//        var context = canvas.getContext('2d');
-//        context.drawImage(video, 0, 0, canvas.width, canvas.height);
-//        var base64 = canvas.toDataURL();
-//        cb(base64);
-//    };
-//    Camera.prototype.isRunning = false;
+})();
 
-//    return Camera;
-
-//})();
 
 
 XSockets.WebRTC.AudioPlayer = (function () {
@@ -1035,89 +1019,6 @@ XSockets.WebRTC.AudioPlayer = (function () {
         this.sources[key].stop(0);
     };
     return audio;
-})();
-
-
-XSockets.WebRTC.VoiceMessage = (function () {
-    var recorder;
-    var voiceMessage = function (options) {
-        var self = this;
-        if (!"Recorder" in window)
-            throw "You need to reference Matt Diamons recorderJS,https://github.com/mattdiamond/Recorderjs";
-        this.audioContext = new AudioContext();
-        this.input = null;
-        options = options || {
-            maxRecordingTime: 4000
-        }
-
-        this.created = null;
-        this.isRecording = false;
-
-        this.loop = function () {
-            if (!self.isRecording) return;
-            var justNow = new Date();
-            var elapsed = justNow - self.created;
-            if (self.timeElapsed) {
-
-                self.timeElapsed(elapsed, justNow, self.created);
-                if (elapsed >= options.maxRecordingTime) {
-
-                    self.isRecording = false;
-                    self.stop();
-                    self.recordingElapsed();
-                }
-            }
-            if (self.isRecording)
-                requestAnimationFrame(self.loop);
-        };
-    }
-    voiceMessage.prototype.addSteam = function (stream) {
-        this.input = this.audioContext.createMediaStreamSource(stream);
-        this.input.connect(this.audioContext.destination);
-        recorder = new Recorder(this.input);
-    };
-    voiceMessage.prototype.start = function () {
-        this.created = new Date();
-        this.isRecording = true;
-        recorder.record();
-        requestAnimationFrame(this.loop);
-        return this;
-    };
-    voiceMessage.prototype.stop = function () {
-        recorder.stop();
-        var that = this;
-        recorder.exportWAV(function (blob) {
-
-            var arrayBuffer;
-            var fileReader = new FileReader();
-            fileReader.onload = function () {
-                arrayBuffer = this.result;
-                that.completed(arrayBuffer);
-            };
-            fileReader.readAsArrayBuffer(blob);
-
-
-
-
-        });
-        return this;
-
-    };
-    voiceMessage.prototype.recordingElapsed = function () {
-    }
-    voiceMessage.prototype.timeElapsed = function (ts) {
-        console.log(ts);
-    };
-    voiceMessage.prototype.completed = function (fn) {
-
-        recorder.exportWAV(function (blob) {
-            fn(blob);
-        });
-    };
-
-    return voiceMessage;
-
-
 })();
 
 
@@ -1210,7 +1111,6 @@ XSockets.WebRTC.Events = {
     onconnectionstart: "connectionstarted",
     onconnectioncreated: "connectioncreated",
     onconnectionlost: "connectionlost",
-    onoffer: 'sdoffer',
-    onanwer: 'sdanswer'
-   
+    onoffer: "_onoffer",
+    onanswer: "_onanswer"
 };
