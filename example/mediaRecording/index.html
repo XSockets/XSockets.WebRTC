@@ -1,0 +1,110 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <title>VideoCrapChat - an experiment by Magnus 'dathor' Thor</title>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.5.0/css/font-awesome.min.css">
+
+    <link href="app/css/grid.css" rel="stylesheet" />
+    <link href="app/css/app.css" rel="stylesheet" />
+</head>
+<body>
+
+
+    <div data-bobapp="true" id="crap-chat">
+
+
+        <div class="site-nav">
+            <span class="menu">
+                <i class="fa fa-bars fa-2x"></i>
+            </span>
+            <div class="site-navinner">
+
+
+                <div class="row">
+                    <div class="col-1-3">
+                        <div class="input-group">
+                            <label>Handle (nickname)</label>
+                            <input type="text" class="input-lg" data-bind="value:handle" id="handle" />
+                        </div>
+                    </div>
+                    <div class="col-1-3">
+                        <div class="input-group">
+                            <label>Slug ( room )</label>
+                            <input type="text" class="input-lg" data-bind="value:slug" />
+
+
+                        </div>
+                    </div>
+                    <div class="col-1-3">
+                        <div class="input-group">
+                            <label>Slug</label>
+                            <button class="white-btn" id="btn-save">
+
+                                SAVE &nbsp;
+                                <i class="fa fa-check"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+
+        <div class="site-main">
+            <div class="row">
+                <div class="col-1-1">
+
+                    <div class="video-wraper">
+                        <video id="local-video" autoplay muted poster="//placehold.it/320x240?text=waiting for video"></video>
+                        <button id="btn-record">
+                            <i class="fa fa-video-camera"></i>
+                            Record
+                        </button>
+                    </div>
+
+
+
+                </div>
+
+            </div>
+        </div>
+
+        <div id="remote" class="row">
+            <div class="col-1-1">
+                <ul class="clips" id="clips">
+                    <li data-repeat="videoClips">
+                        <div data-bind="domId:id">
+                            <video data-bind="blob:url" controls></video>
+
+                            <div class="toolbar row">
+                                <div class="col-1-2 text-left">
+                                    <a data-bind="href:url,download:fileName">
+                                        <i class="fa fa-download"></i>
+                                    </a>
+                                </div>
+                                <div class="col-1-2 text-right">
+                                    <i class="fa fa-trash" data-bind="click:remove"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </li>
+                </ul>
+            </div>
+
+        </div>
+    </div>
+
+
+
+    <script src="app/js/vendor/bob.the.binder.latest.js"></script>
+    <script src="app/binders/custom.binder.js"></script>
+    <script src="app/js/vendor/XSockets.latest.js"></script>
+
+    <script src="../../src/js/XSockets.WebRTC.latest.js"></script>
+
+
+    <script src="app/js/viewmodel.js"></script>
+    <script src="app/app.js"></script>
+</body>
+</html>

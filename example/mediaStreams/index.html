@@ -87,8 +87,10 @@
             var videoToRemove = $("video[rel='" + peerId + "']");
             $(".remotevideos").removeChild(videoToRemove);
         };
-        var oncConnectionCreated = function() {
+        var oncConnectionCreated = function () {
+            console.log(arguments,rtc);
             trace("oncconnectioncreated", arguments);
+
         };
         var onGetUerMedia = function(stream) {
             trace("Successfully got some userMedia , hopefully a goat will appear..");
@@ -122,7 +124,18 @@
             rtc.onconnectionlost = onConnectionLost;
             rtc.onremotestream = onRemoteStream;
 
+       
+            rtc.onanswer = function (event) {
+              
+            };
+
+            rtc.onoffer = function (event) {
+             
+            };
+
         };
+
+     
 
         var onConnected = function() {
             trace("connection to the 'broker' server is established");

@@ -1,0 +1,60 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <title>getUserMedia & create new MediaStreams</title>
+    <meta charset="utf-8" />
+</head>
+<body>
+
+<video autoplay width="320" height="240" muted></video>
+    <script src="../mediaStreams/js/XSockets.latest.js"></script>
+    <script src="../../src/js/XSockets.WebRTC.latest.js"></script>
+
+
+    <script>
+
+        var $ = function(selector,context) {
+            if (!context) context = document;
+            return context.querySelector(selector);
+        };
+    
+        var mainStream, audioStream, recorder, doc = document;
+        doc.addEventListener("DOMContentLoaded", function () {
+            getUserMedia({ audio: true, video: true }, function (stream) {
+                mainStream = stream;
+
+                // create a new MediaStream just using the "audio", by providing a sequence<MediaStream>
+                audioStream = new webkitMediaStream(mainStream.getAudioTracks());
+
+                // valid mimeTypes are:audio/webm,audio/webm;codecs=opus,video/webm,video/webm;codecs=vp8,video/webm;codecs=vp9
+
+
+                recorder = new XSockets.MediaRecorder(audioStream, { mimeType: "audio/webm", ignoreMutedMedia: false });
+
+                recorder.oncompleted = function(blob, blobUrl) {
+                    console.log("oncompleted",blob, blobUrl);
+                };
+
+
+               
+
+                attachMediaStream($("video"), mainStream);
+
+                recorder.start(5000);
+
+            }, function(err) {
+
+            });
+
+        });
+
+
+
+       
+
+
+
+    </script>
+
+</body>
+</html>

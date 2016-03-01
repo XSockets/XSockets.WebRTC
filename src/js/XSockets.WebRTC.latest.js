@@ -579,13 +579,13 @@ XSockets.WebRTC = (function () {
                         PeerId: that.PeerId
                     });
                 };
+               
                 self.dispatch(event.type, event);
             };
             this.Connection.onnegotiationneeded = function (event) {
                 self.dispatch(event.type, event);
             };
             this.Connection.onremovestream = function (event) {
-            
                 self.dispatch(event.type, event);
             };
             this.Connection.onsignalingstatechange = function (event) {
@@ -668,6 +668,7 @@ XSockets.WebRTC = (function () {
                 };
             };
             this.Connection.onicecandidate = function (event) {
+
                 if (event.candidate) {
                     var candidate = {
                         type: 'candidate',
@@ -762,6 +763,7 @@ XSockets.WebRTC = (function () {
         controller.contextsignal = function (signal) {
             var msg = JSON.parse(signal.Message);
             self.dispatch(msg.type, signal);
+          
         };
         controller.contextchanged = function (change) {
 
@@ -915,7 +917,9 @@ XSockets.UserMediaConstraints = (function () {
 XSockets.MediaRecorder = (function () {
     var recorder = function (stream, options) {
         var self = this;
+
         this.options = options || { mimeType: "video/webm", ignoreMutedMedia: false };
+
         var mediaRecorder = new MediaRecorder(stream, this.options);
         var handleStop = function (event) {
             self.isRecording = false;
@@ -933,10 +937,14 @@ XSockets.MediaRecorder = (function () {
     recorder.prototype.oncompleted = function () {
     };
 
-    recorder.prototype.stop = function () {
+    recorder.prototype.stop = function() {
         var mediaRecorder = this.mediaRecorder;
         mediaRecorder.stop();
-    }
+    };
+
+
+
+
     recorder.prototype.blobs = [];
     recorder.prototype.start = function (stopafter) {
         this.blobs.length = 0;
@@ -954,6 +962,14 @@ XSockets.MediaRecorder = (function () {
 
 })();
 
+
+XSockets.Utils.blobToArrayBuffer = function (blob, fn) {
+    var fileReader = new FileReader();
+    fileReader.onload = function () {
+        fn.apply(this.result, [blob.size, blob.type]);
+    };
+    fileReader.readAsArrayBuffer(blob);
+};
 
 
 XSockets.WebRTC.AudioPlayer = (function () {
