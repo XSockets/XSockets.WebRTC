@@ -917,9 +917,10 @@ XSockets.UserMediaConstraints = (function () {
 XSockets.MediaRecorder = (function () {
     var recorder = function (stream, options) {
         var self = this;
-
-        this.options = options || { mimeType: "video/webm", ignoreMutedMedia: false };
-
+        this.options = XSockets.Utils.extend(options, {
+             chunkSize: 500,
+             mimeType: "video/webm", ignoreMutedMedia: false, recorderId: XSockets.Utils.guid()
+        });
         var mediaRecorder = new MediaRecorder(stream, this.options);
         var handleStop = function (event) {
             self.isRecording = false;
@@ -927,11 +928,14 @@ XSockets.MediaRecorder = (function () {
             self.oncompleted.apply(self, [blob, URL.createObjectURL(blob)]);
         };
         var handleDataAvailable = function (event) {
-            if (event.data && event.data.size > 0)
+            if (event.data && event.data.size > 0) {
                 self.blobs.push(event.data);
+                if (self.onchunk) self.onchunk.apply(event, [event.data, self.options.recorderId]);
+            }
         };
         mediaRecorder.onstop = handleStop;
         mediaRecorder.ondataavailable = handleDataAvailable;
+        mediaRecorder.onchunk = undefined;
         this.mediaRecorder = mediaRecorder;
     };
     recorder.prototype.oncompleted = function () {
@@ -955,7 +959,7 @@ XSockets.MediaRecorder = (function () {
             mediaRecorder.stop();
             window.clearTimeout(timeOut);
         }, stopafter || 3000);
-        mediaRecorder.start(30);
+        mediaRecorder.start(this.options.chunkSize);
     };
     recorder.prototype.isRecording = false;
     return recorder;
@@ -1037,7 +1041,67 @@ XSockets.WebRTC.AudioPlayer = (function () {
     return audio;
 })();
 
+XSockets.WebRTC.MediaSourceChunksPlayer = (function() {
+    var ctor = function(audioEl) {
+        var self = this;
+        var mediaSource = new MediaSource();
+        this.audioEl = document.querySelector(audioEl);
+        var sourceBuffer;
+        var loadedBuffers = [];
+        var itemsAppendedToSourceBuffer = 0;
+        this.addChunk = function(result) {
+            loadedBuffers.push(result);
 
+            if (!sourceBuffer.updating) {
+                getNextBuffer();
+            }
+            if (loadedBuffers.length == 0) {
+                startPlayback();
+            }
+        }
+
+        function getNextBuffer() {
+            if (loadedBuffers.length) {
+                sourceBuffer.appendBuffer(loadedBuffers.shift());
+                itemsAppendedToSourceBuffer++;
+            }
+        }
+
+        function sourceOpenCallback() {
+            sourceBuffer = mediaSource.addSourceBuffer('audio/mpeg');
+            sourceBuffer.addEventListener('updateend', getNextBuffer, false);
+            console.log("sourceOpenCallback");
+        }
+
+        function sourceCloseCallback() {
+            mediaSource.removeSourceBuffer(sourceBuffer);
+        }
+
+        function sourceEndedCallback() {
+        }
+
+        function startPlayback() {
+            if (self.audioEl.paused) {
+                self.audioEl.play();
+            }
+        }
+
+        mediaSource.addEventListener('sourceopen', sourceOpenCallback, false);
+        mediaSource.addEventListener('webkitsourceopen', sourceOpenCallback, false);
+        mediaSource.addEventListener('sourceclose', sourceCloseCallback, false);
+        mediaSource.addEventListener('webkitsourceclose', sourceCloseCallback, false);
+        mediaSource.addEventListener('sourceended', sourceEndedCallback, false);
+        mediaSource.addEventListener('webkitsourceended', sourceEndedCallback, false);
+
+        self.audioEl.src = window.URL.createObjectURL(mediaSource);
+
+        var audioContext = new AudioContext();
+        var source = audioContext.createMediaElementSource(self.audioEl);
+        source.connect(audioContext.destination);
+
+    }
+    return ctor;
+}());
 
 XSockets.UserMediaConstraint = (function () {
     var constraint = function (c) {
@@ -1055,15 +1119,13 @@ XSockets.UserMediaConstraint = (function () {
         }
         this.applySources = function (videoSourceId, audioSourceId) {
 
-            if (videoSourceId != "") {
+            if (videoSourceId !== "") {
                 if (self.video) (self["video"].optional = []).push({ sourceid: videoSourceId });
             } else self.video = false;
 
-            if (audioSourceId != "") {
+            if (audioSourceId !== "") {
                 if (self.audio) (self["audio"].optional = []).push({ sourceid: audioSourceId });
             } else self.audio = false;
-
-
             return this;
         }
         return this;

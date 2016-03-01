@@ -25,18 +25,18 @@
 
                 // create a new MediaStream just using the "audio", by providing a sequence<MediaStream>
                 audioStream = new webkitMediaStream(mainStream.getAudioTracks());
-
                 // valid mimeTypes are:audio/webm,audio/webm;codecs=opus,video/webm,video/webm;codecs=vp8,video/webm;codecs=vp9
-
-
                 recorder = new XSockets.MediaRecorder(audioStream, { mimeType: "audio/webm", ignoreMutedMedia: false });
 
                 recorder.oncompleted = function(blob, blobUrl) {
                     console.log("oncompleted",blob, blobUrl);
                 };
 
-
-               
+                recorder.onchunk = function(blob, recorderId) {
+                    // will fire for each blob "fragment" in during recording.
+                    console.log("onchunk", blob, recorderId);
+                    // send the blob "fragment" to a XSockets.NET controller i.e
+                };
 
                 attachMediaStream($("video"), mainStream);
 
