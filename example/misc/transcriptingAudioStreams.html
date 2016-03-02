@@ -1,0 +1,175 @@
+﻿
+<!DOCTYPE html>
+<html>
+<head>
+    <title></title>
+    <meta charset="utf-8" />
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        #app {
+            width: 100%;
+            background: #dadada;
+            padding: 10px;
+        }
+
+        #interim {
+            position: relative;
+            background: #fff;
+            padding: 5px;
+        }
+
+        #complete {
+            padding-top: 1em;
+            float: right;
+            width: 50%;
+        }
+
+            #complete p {
+                line-height: 0.2;
+                padding-left: 1em;
+            }
+
+        video {
+            padding-top: 1em;
+            float: left;
+            width: 50%;
+        }
+    </style>
+</head>
+<body>
+
+
+    <div id="app">
+        <div id="interim">....</div>
+        <video autoplay muted></video>
+
+    </div>
+
+    <div id="complete"></div>
+
+
+
+
+
+    <script src="../lib/XSockets.latest.js"></script>
+    <script src="../../src/js/XSockets.WebRTC.latest.js"></script>
+    <script>
+
+
+
+        var AudioTrackSpeechLog = (function () {
+            "use strict";
+            var ctor = function (track, completed, interim, lang) {
+
+                var self = this;
+                this.recognizing = false;
+                this.finalTranscript = "";
+
+                if (('webkitSpeechRecognition' in window)) {
+
+                    this.recognition = new webkitSpeechRecognition();
+                    this.recognition.continuous = true;
+                    this.recognition.interimResults = true;
+                    this.recognition.lang = lang || navigator.language;
+
+                    this.recognition.audioTack = track[0];
+
+
+                    this.recognition.onstart = function () {
+                        console.log("staring");
+                    };
+
+                    this.recognition.onsoundend = function () {
+                        console.log("onsoundend");
+                        //  self.start();
+                    };
+
+                    console.log(this.recognition);
+
+                    this.fragmentId = XSockets.Utils.guid();
+
+                    this.recognition.onresult = function (event) {
+
+                        var interimTranscript = '';
+
+                        for (var i = event.resultIndex; i < event.results.length; ++i) {
+                            if (event.results[i].isFinal) {
+
+                                self.finalTranscript += event.results[i][0].transcript;
+
+                                completed(event.results[i][0].transcript,
+                                    self.fragmentId,
+                                    event.results[i][0].confidence,
+                                    self.trackId, new Date());
+
+                                self.fragmentId = XSockets.Utils.guid();
+
+                            } else {
+                                interimTranscript += event.results[i][0].transcript;
+                                interim(interimTranscript, self.fragmentId, self.trackId, new Date());
+                            }
+                        }
+                    };
+                    //     this.trackId = track.id;
+                }
+            };
+            ctor.prototype.start = function () {
+                this.recognition.start();
+                this.recognizing = true;
+                return this;
+            };
+            ctor.prototype.stop = function () {
+                this.recognition.stop();
+                this.recognizing = false;
+                return this;
+            };
+            return ctor;
+        })();
+
+        var logger;
+
+        var $ = function (selector, el) {
+            if (!el) el = document;
+            return el.querySelector(selector);
+        };
+
+
+        document.addEventListener("DOMContentLoaded", function () {
+
+
+            navigator.webkitGetUserMedia({ audio: true, video: true }, function (stream) {
+
+                attachMediaStream($("video"), stream);
+
+                logger = new AudioTrackSpeechLog(stream.getAudioTracks(), function () {
+
+                }, function () {
+                    var s = $("p[data-id='" + arguments[1] + "']");
+                    if (!s) {
+                        var p = document.createElement("p");
+                        p.dataset.id = arguments[1];
+                        p.textContent = arguments[0];
+                        $("#complete").appendChild(p);
+                    } else {
+                        s.textContent = arguments[0];
+                    }
+                }, "en-US");
+
+
+                window.setTimeout(function () {
+                    logger.start();
+                }, 1500);
+
+
+            }, function (err) {
+                console.error("Could not capture the mediaStream (GUM)", err);
+            });
+
+        });
+    </script>
+
+</body>
+</html>
