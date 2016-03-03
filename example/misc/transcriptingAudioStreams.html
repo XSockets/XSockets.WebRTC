@@ -30,6 +30,11 @@
             #complete p {
                 line-height: 0.2;
                 padding-left: 1em;
+                
+            }
+
+            #complete p > mark {
+                margin-left: 20px;
             }
 
         video {
@@ -48,7 +53,13 @@
 
     </div>
 
-    <div id="complete"></div>
+<div id="complete">
+    <h2>Transcript</h2>
+    <p>
+        Black text is interim result , <mark>marked</mark> with is the final.
+    </p>
+    <hr/>
+</div>
 
 
 
@@ -71,35 +82,30 @@
                 if (('webkitSpeechRecognition' in window)) {
 
                     this.recognition = new webkitSpeechRecognition();
-                    this.recognition.continuous = true;
+                    this.recognition.continuous = false;
                     this.recognition.interimResults = true;
                     this.recognition.lang = lang || navigator.language;
 
-                    this.recognition.audioTack = track[0];
+                    this.recognition.audioTrack = track[0];
 
 
                     this.recognition.onstart = function () {
-                        console.log("staring");
+                     
                     };
 
-                    this.recognition.onsoundend = function () {
-                        console.log("onsoundend");
-                        //  self.start();
+                    this.recognition.onend = function (event) {
+                        console.log(event);
+                       
+                        self.start();
                     };
-
-                    console.log(this.recognition);
-
                     this.fragmentId = XSockets.Utils.guid();
 
                     this.recognition.onresult = function (event) {
-
                         var interimTranscript = '';
-
                         for (var i = event.resultIndex; i < event.results.length; ++i) {
                             if (event.results[i].isFinal) {
-
                                 self.finalTranscript += event.results[i][0].transcript;
-
+                             
                                 completed(event.results[i][0].transcript,
                                     self.fragmentId,
                                     event.results[i][0].confidence,
@@ -145,8 +151,18 @@
                 attachMediaStream($("video"), stream);
 
                 logger = new AudioTrackSpeechLog(stream.getAudioTracks(), function () {
+                    // on final Result
+
+                    // find the "intermResult" , 
+
+                    var s = $("p[data-id='" + arguments[1] + "']");
+
+                    var m = document.createElement("mark");
+                    m.textContent = arguments[0];
+                    s.appendChild(m);
 
                 }, function () {
+                    // on interim result...
                     var s = $("p[data-id='" + arguments[1] + "']");
                     if (!s) {
                         var p = document.createElement("p");

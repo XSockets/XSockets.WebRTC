@@ -917,7 +917,7 @@ XSockets.UserMediaConstraints = (function () {
 XSockets.MediaRecorder = (function () {
     var recorder = function (stream, options) {
         var self = this;
-        this.options = XSockets.Utils.extend(options, {
+        this.options = XSockets.Utils.extend( options || {} , {
              chunkSize: 500,
              mimeType: "video/webm", ignoreMutedMedia: false, recorderId: XSockets.Utils.guid()
         });
